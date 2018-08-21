@@ -56,15 +56,13 @@ val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_work
 @click.command()
 @click.option('--baseline',default='ADMM', type=click.Choice(['ADMM', 'ADMM_size','ADMM_gc']))
 @click.option('--inneriter', default=5, help='iterative time in an inner admm loop')
-@click.option('--lamda', default=10, help='balance between unary and boundary terms')
+@click.option('--lamda', default=1.0, help='balance between unary and boundary terms')
 @click.option('--sigma', default=0.02, help='sigma in the boundary term of the graphcut')
 @click.option('--kernelsize', default=5, help='kernelsize of the graphcut')
 @click.option('--lowbound', default=93, help='lowbound')
 @click.option('--highbound', default=1728, help='highbound')
 @click.option('--saved_name', default='default_iou', help='default_save_name')
 def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, saved_name):
-    print('yesh')
-
     ious_tables = []
     variable_str = str([baseline,inneriter, lamda, sigma, kernelsize, lowbound, highbound, saved_name]).replace(' ', '').replace(',', '_').replace("'", "").replace('[', '').replace(']', '')
     ious_tables.append([baseline,inneriter, lamda, sigma, kernelsize, lowbound, highbound, saved_name])
