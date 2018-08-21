@@ -35,8 +35,6 @@ lr = 0.001
 max_epoch = 100
 data_dir = 'dataset/ACDC-2D-All'
 
-size_min = 5
-size_max = 20
 
 color_transform = Colorize()
 transform = transforms.Compose([
