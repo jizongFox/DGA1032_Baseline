@@ -30,7 +30,7 @@ device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torc
 
 batch_size = 1
 batch_size_val = 1
-num_workers = 0
+num_workers = 1
 lr = 0.001
 max_epoch = 100
 data_dir = 'dataset/ACDC-2D-All'
