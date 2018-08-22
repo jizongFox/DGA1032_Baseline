@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms
 import utils.medicalDataLoader as medicalDataLoader
-from ADMM import ADMM_networks, ADMM_network_without_sizeConstraint, ADMM_network_without_graphcut,weakly_ADMM_network
+from ADMM import ADMM_networks, ADMM_network_without_sizeConstraint, ADMM_network_without_graphcut,weakly_ADMM_network,weakly_ADMM_without_sizeConstraint,weakly_ADMM_without_gc
 from utils.enet import Enet
 from utils.pretrain_network import pretrain
 from utils.utils import Colorize, dice_loss, evaluate_iou
@@ -55,10 +55,10 @@ val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_work
 
 
 @click.command()
-@click.option('--baseline',default='ADMM', type=click.Choice(['ADMM', 'ADMM_size','ADMM_gc']))
-@click.option('--inneriter', default=5, help='iterative time in an inner admm loop')
-@click.option('--lamda', default=1.0, help='balance between unary and boundary terms')
-@click.option('--sigma', default=0.2, help='sigma in the boundary term of the graphcut')
+@click.option('--baseline',default='ADMM_weak', type=click.Choice(['ADMM_weak', 'ADMM_weak_gc','ADMM_weak_size']))
+@click.option('--inneriter', default=3, help='iterative time in an inner admm loop')
+@click.option('--lamda', default=1, help='balance between unary and boundary terms')
+@click.option('--sigma', default=0.01, help='sigma in the boundary term of the graphcut')
 @click.option('--kernelsize', default=5, help='kernelsize of the graphcut')
 @click.option('--lowbound', default=93, help='lowbound')
 @click.option('--highbound', default=1728, help='highbound')
@@ -70,28 +70,42 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
 
     ##==================================================================================================================
     neural_net = Enet(2)
-
-    map_location = lambda storage, loc: storage
-
-    # neural_net.load_state_dict(torch.load(
-    #     'checkpoint/model_0.6649_split_0.030.pth', map_location=map_location))
     neural_net.to(device)
-    net = weakly_ADMM_network(neural_net, lowerbound=50, upperbound=2000,sigma=sigma,lamda=lamda)
+    if baseline =='ADMM_weak':
+        net = weakly_ADMM_network(neural_net, lowerbound=lowbound, upperbound=highbound,sigma=sigma,lamda=lamda)
+    elif baseline == 'ADMM_weak_gc':
+        net = weakly_ADMM_without_sizeConstraint(neural_net, lamda=lamda ,sigma=sigma,kernelsize=kernelsize)
+    elif baseline =='ADMM_weak_size':
+        net = weakly_ADMM_without_gc(neural_net,lowerbound=lowbound,upperbound=highbound)
+    else:
+        raise ValueError
+
     plt.ion()
+    for iteration in range (max_epoch):
 
-    for i, (img, full_mask, weak_mask, _) in tqdm(enumerate(train_loader)):
-        if weak_mask.sum() <= 0 or full_mask.sum() <= 0:
-            continue
-        img, full_mask, weak_mask = img.to(device), full_mask.to(device), weak_mask.to(device)
+        train_ious = evaluate_iou(train_loader, net.neural_net)
+        val_ious = evaluate_iou(val_loader, net.neural_net)
+        ious = np.array((train_ious, val_ious)).ravel().tolist()
+        ious_tables.append(ious)
+        try:
+            if not os.path.exists(os.path.join('results',filename)):
+                os.mkdir(os.path.join('results',filename))
+
+            pd.DataFrame(ious_tables).to_csv(os.path.join('results',filename,'%s.csv' % variable_str),header=None)
+        except Exception as e:
+            print(e)
 
 
-        for i in range(inneriter):
-            net.neural_net.eval()
-            net.update((img, weak_mask), full_mask)
-            net.show_gamma()
-            # net.show_heatmap()
-            pass
-        net.reset()
+        for i, (img, full_mask, weak_mask, _) in tqdm(enumerate(train_loader)):
+            if weak_mask.sum() <= 0 or full_mask.sum() <= 0:
+                continue
+            img, full_mask, weak_mask = img.to(device), full_mask.to(device), weak_mask.to(device)
+
+            for i in range(inneriter):
+                # net.neural_net.eval()
+                net.update((img, weak_mask), full_mask)
+                net.show_gamma()
+                net.reset()
 
 
 if __name__ == "__main__":

@@ -109,7 +109,7 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
         # choose randomly a batch of image from labeled dataset and unlabeled dataset.
         # Initialize the ADMM dummy variables for one-batch training
 
-        if (iteration ) % 200 == 0:
+        if (iteration+1 ) % 200 == 0:
             unlabeled_ious = evaluate_iou(unlabeled_dataLoader, net.neural_net)
             val_ious = evaluate_iou(val_loader, net.neural_net)
             ious = np.array((unlabeled_ious, val_ious)).ravel().tolist()
@@ -146,8 +146,8 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
             net.neural_net.eval()
             net.update((labeled_img, labeled_mask),
                        (unlabeled_img, unlabeled_mask))
-            # net.show_gamma()
-        net.reset()
+            net.show_gamma()
+            net.reset()
 
 
 if __name__ == "__main__":

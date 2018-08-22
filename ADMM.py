@@ -3,6 +3,8 @@ import maxflow
 import numpy as np
 import torch
 import torch.nn.functional as F
+import cv2
+import pandas as pd
 
 from utils.network import UNet
 from utils.criterion import CrossEntropyLoss2d
@@ -354,7 +356,7 @@ class ADMM_network_without_sizeConstraint(ADMM_networks):
 
 
 class ADMM_network_without_graphcut(ADMM_networks):
-    def __init__(self, neural_network, lowerbound=98, upperbound=1723):
+    def __init__(self, neural_network, lowerbound=50, upperbound=1723):
         super().__init__(neural_network, lowerbound, upperbound, lamda=0, sigma=0, kernelsize=5)
 
     def update_theta(self):
@@ -402,8 +404,10 @@ class ADMM_network_without_graphcut(ADMM_networks):
 
 
 class weakly_ADMM_network(ADMM_networks):
+
     def __init__(self, neural_network, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5):
         super().__init__(neural_network, lowerbound, upperbound, lamda, sigma, kernelsize)
+        self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=0.005)
         self.CEloss_criterion = CrossEntropyLoss2d(torch.Tensor([0, 1]).float()).to(device)
 
     def update_gamma(self):
@@ -412,12 +416,14 @@ class weakly_ADMM_network(ADMM_networks):
             1)
         unary_term_gamma_1[(self.weak_mask.squeeze(dim=1).cpu().data.numpy() == 1).astype(bool)] = -np.inf
 
-        # unary_term_gamma_1[0][0:20] = np.inf
-        # unary_term_gamma_1[0][-20:-1] = np.inf
-        # unary_term_gamma_1[0][:, 0:20] = np.inf
-        # unary_term_gamma_1[0][:, -20:-1] = np.inf
-
+        weak_mask = self.weak_mask.squeeze().numpy()
+        assert len(weak_mask.shape)==2
+        kernel = np.ones((5, 5), np.uint8)
+        dilation = cv2.dilate(weak_mask.astype(np.float32),kernel, iterations=4)
         unary_term_gamma_0 = np.zeros(unary_term_gamma_1.shape)
+        unary_term_gamma_1[0][dilation!=1]=np.inf
+
+
         new_gamma = np.zeros(self.gamma.shape)
         g = maxflow.Graph[float](0, 0)
         i = 0
@@ -447,12 +453,11 @@ class weakly_ADMM_network(ADMM_networks):
         [image, weak_mask] = image_pair
         self.full_mask = full_mask
         self.image_forward(image, weak_mask)
-        self.update_s()
         self.update_gamma()
-
+        self.update_s()
         self.update_theta()
-        # self.update_u()
-        # self.update_v()
+        self.update_u()
+        self.update_v()
 
     def image_forward(self, image, weak_mask):
         self.weak_mask = weak_mask
@@ -488,21 +493,22 @@ class weakly_ADMM_network(ADMM_networks):
 
         for i in range(5):
             CE_loss = self.CEloss_criterion(self.image_output, self.weak_mask.squeeze(1).long())
-            unlabled_loss = self.p_v / 2 * (
-                    F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(-self.s + self.v).float().to(
-                device)).norm(p=2) ** 2 \
-                            + self.p_u / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(
-                -self.gamma + self.u).float().to(device)).norm(p=2) ** 2
+            unlabled_loss =  self.p_u / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(
+                -self.gamma + self.u).float().to(device)).norm(p=2)**2\
+            + self.p_v / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(-self.s + self.v).float().to(
+                device)).norm(p=2) ** 2
 
             unlabled_loss /= list(self.image_output.reshape(-1).size())[0]
 
             loss = CE_loss + unlabled_loss
+            # loss = unlabled_loss
             self.optimiser.zero_grad()
             loss.backward()
             self.optimiser.step()
-            # print('loss:', loss.item())
+            # print(loss.item())
 
             self.image_forward(self.image, self.weak_mask)
+
 
     def update_u(self):
 
@@ -560,3 +566,97 @@ class weakly_ADMM_network(ADMM_networks):
         plt.show(block=False)
         plt.pause(0.01)
 
+
+class weakly_ADMM_without_sizeConstraint(weakly_ADMM_network):
+
+    def __init__(self, neural_network, lamda=1.0, sigma=0.02, kernelsize=5):
+        super().__init__(neural_network, lowerbound=0, upperbound=0, lamda=lamda, sigma=sigma, kernelsize=kernelsize)
+
+    def update_theta(self):
+        self.neural_net.zero_grad()
+
+        for i in range(5):
+            CE_loss = self.CEloss_criterion(self.image_output, self.weak_mask.squeeze(1).long())
+            unlabled_loss =  self.p_u / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(
+                -self.gamma + self.u).float().to(device)).norm(p=2)**2
+
+            unlabled_loss /= list(self.image_output.reshape(-1).size())[0]
+
+            loss = CE_loss + unlabled_loss
+            # loss = unlabled_loss
+            self.optimiser.zero_grad()
+            loss.backward()
+            self.optimiser.step()
+            # print(loss.item())
+
+            self.image_forward(self.image, self.weak_mask)
+    def update_v(self):
+        pass
+    def update_s(self):
+        pass
+    def update(self, image_pair, full_mask):
+        [image, weak_mask] = image_pair
+        self.full_mask = full_mask
+        self.image_forward(image, weak_mask)
+        self.update_gamma()
+        self.update_theta()
+        self.update_u()
+
+    def show_gamma(self):
+        plt.figure(3, figsize=(5, 5))
+        # plt.gray()
+        plt.clf()
+        plt.subplot(1, 1, 1)
+        plt.imshow(self.image[0].cpu().data.numpy().squeeze(), cmap='gray')
+        # plt.imshow(self.gamma[0])
+        plt.contour(self.weak_mask.squeeze().cpu().data.numpy(), level=[0], colors="yellow", alpha=0.2, linewidth=0.001,
+                    label='GT')
+        plt.contour(self.full_mask.squeeze().cpu().data.numpy(), level=[0], colors="yellow", alpha=0.2, linewidth=0.001,
+                    label='GT')
+
+        plt.contour(self.gamma[0], level=[0], colors="red", alpha=0.2, linewidth=0.001, label='graphcut')
+
+        plt.contour(self.heatmap2segmentation(self.image_output).squeeze().cpu().data.numpy(), level=[0],
+                    colors="green", alpha=0.2, linewidth=0.001, label='CNN')
+        plt.title('Gamma')
+        # figManager = plt.get_current_fig_manager()
+        # figManager.window.showMaximized()
+        # plt.legend()
+        plt.show(block=False)
+        plt.pause(0.01)
+
+
+class weakly_ADMM_without_gc(weakly_ADMM_network):
+
+    def __init__(self, neural_network, lowerbound, upperbound):
+        super().__init__(neural_network, lowerbound, upperbound, lamda=1, sigma=1, kernelsize=5)
+    def update(self, image_pair, full_mask):
+        [image, weak_mask] = image_pair
+        self.full_mask = full_mask
+        self.image_forward(image, weak_mask)
+        self.update_s()
+        self.update_theta()
+        self.update_v()
+    def update_gamma(self):
+        pass
+    def update_u(self):
+        pass
+    def show_gamma(self):
+        plt.figure(3, figsize=(5, 5))
+        # plt.gray()
+        plt.clf()
+        plt.subplot(1, 1, 1)
+        plt.imshow(self.image[0].cpu().data.numpy().squeeze(), cmap='gray')
+        # plt.imshow(self.gamma[0])
+        plt.contour(self.weak_mask.squeeze().cpu().data.numpy(), level=[0], colors="yellow", alpha=0.2, linewidth=0.001,
+                    label='GT')
+        plt.contour(self.full_mask.squeeze().cpu().data.numpy(), level=[0], colors="yellow", alpha=0.2, linewidth=0.001,
+                    label='GT')
+
+        plt.contour(self.s.squeeze(), level=[0], colors='blue', alpha=0.2, linewidth=0.001, label='size_constraint')
+        plt.contour(self.heatmap2segmentation(self.image_output).squeeze().cpu().data.numpy(), level=[0],
+                    colors="green", alpha=0.2, linewidth=0.001, label='CNN')
+        plt.title('Gamma')
+
+        plt.show(block=False)
+        plt.pause(0.01)

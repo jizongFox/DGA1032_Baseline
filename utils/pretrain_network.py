@@ -30,8 +30,8 @@ def val(val_dataloader, network):
 def pretrain(train_dataloader, val_dataloader_, network, path=None, split_ratio=0.1):
     highest_iou = -1
     class config:
-        lr = 1e-3
-        epochs = 100
+        lr = 1e-4
+        epochs = 500
         path = 'checkpoint'
 
 
@@ -57,9 +57,9 @@ def pretrain(train_dataloader, val_dataloader_, network, path=None, split_ratio=
             loss_meter.add(loss.item())
         print('train_loss: %.6f'%loss_meter.value()[0])
 
-        if (iteration+1) %50 ==0:
+        if (iteration+1) %10 ==0:
             for param_group in optimiser_.param_groups:
-                param_group['lr'] = param_group['lr'] * 0.5
+                param_group['lr'] = param_group['lr'] * 0.75
                 print('learning rate:', param_group['lr'])
 
         val_iou = val(val_dataloader_,network)
