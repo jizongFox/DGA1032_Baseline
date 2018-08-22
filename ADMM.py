@@ -416,7 +416,7 @@ class weakly_ADMM_network(ADMM_networks):
             1)
         unary_term_gamma_1[(self.weak_mask.squeeze(dim=1).cpu().data.numpy() == 1).astype(bool)] = -np.inf
 
-        weak_mask = self.weak_mask.squeeze().numpy()
+        weak_mask = self.weak_mask.cpu().squeeze().numpy()
         assert len(weak_mask.shape)==2
         kernel = np.ones((5, 5), np.uint8)
         dilation = cv2.dilate(weak_mask.astype(np.float32),kernel, iterations=4)
