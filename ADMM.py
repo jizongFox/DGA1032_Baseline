@@ -407,7 +407,7 @@ class weakly_ADMM_network(ADMM_networks):
 
     def __init__(self, neural_network, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5):
         super().__init__(neural_network, lowerbound, upperbound, lamda, sigma, kernelsize)
-        self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=0.005)
+        self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=0.01)
         self.CEloss_criterion = CrossEntropyLoss2d(torch.Tensor([0, 1]).float()).to(device)
 
     def update_gamma(self):
@@ -419,7 +419,7 @@ class weakly_ADMM_network(ADMM_networks):
         weak_mask = self.weak_mask.cpu().squeeze().numpy()
         assert len(weak_mask.shape)==2
         kernel = np.ones((5, 5), np.uint8)
-        dilation = cv2.dilate(weak_mask.astype(np.float32),kernel, iterations=4)
+        dilation = cv2.dilate(weak_mask.astype(np.float32),kernel, iterations=6)
         unary_term_gamma_0 = np.zeros(unary_term_gamma_1.shape)
         unary_term_gamma_1[0][dilation!=1]=np.inf
 
@@ -500,7 +500,7 @@ class weakly_ADMM_network(ADMM_networks):
 
             unlabled_loss /= list(self.image_output.reshape(-1).size())[0]
 
-            loss = CE_loss + unlabled_loss
+            loss = CE_loss +unlabled_loss
             # loss = unlabled_loss
             self.optimiser.zero_grad()
             loss.backward()
@@ -508,6 +508,7 @@ class weakly_ADMM_network(ADMM_networks):
             # print(loss.item())
 
             self.image_forward(self.image, self.weak_mask)
+
 
 
     def update_u(self):
@@ -550,15 +551,15 @@ class weakly_ADMM_network(ADMM_networks):
         plt.pause(0.01)
 
     def show_heatmap(self):
-        plt.figure(3, figsize=(5, 5))
+        plt.figure(10, figsize=(5, 5))
         # plt.gray()
         plt.clf()
         plt.subplot(1, 1, 1)
-        plt.imshow(self.image[0].cpu().data.numpy().squeeze(), cmap='gray')
-        plt.imshow(F.softmax(self.image_output,dim=1)[:,1].data.squeeze().numpy(),cmap='gray',alpha=0.5)
+        # plt.imshow(self.image[0].cpu().data.numpy().squeeze(), cmap='gray')
+        plt.imshow(F.softmax(self.image_output,dim=1)[:,1].cpu().data.squeeze().numpy(),cmap='gray',alpha=0.5)
         plt.colorbar()
-        plt.contour(self.heatmap2segmentation(self.image_output).squeeze().cpu().data.numpy(), level=[0],
-                    colors="green", alpha=0.2, linewidth=0.001, label='CNN')
+        # plt.contour(self.heatmap2segmentation(self.image_output).squeeze().cpu().data.numpy(), level=[0],
+        #             colors="green", alpha=0.2, linewidth=0.001, label='CNN')
         plt.title('heatmap')
         # figManager = plt.get_current_fig_manager()
         # figManager.window.showMaximized()
@@ -637,6 +638,27 @@ class weakly_ADMM_without_gc(weakly_ADMM_network):
         self.update_s()
         self.update_theta()
         self.update_v()
+
+    def update_theta(self):
+
+        self.neural_net.zero_grad()
+
+        for i in range(5):
+            CE_loss = self.CEloss_criterion(self.image_output, self.weak_mask.squeeze(1).long())
+            unlabled_loss =  self.p_v / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(-self.s + self.v).float().to(
+                device)).norm(p=2) ** 2
+
+            unlabled_loss /= list(self.image_output.reshape(-1).size())[0]
+
+            loss = CE_loss +unlabled_loss
+            # loss = unlabled_loss
+            self.optimiser.zero_grad()
+            loss.backward()
+            self.optimiser.step()
+            # print(loss.item())
+
+            self.image_forward(self.image, self.weak_mask)
+
     def update_gamma(self):
         pass
     def update_u(self):

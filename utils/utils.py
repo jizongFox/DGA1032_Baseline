@@ -3,6 +3,7 @@ import torch, torch.nn.functional as F
 import numpy as np, pandas as pd, matplotlib.pyplot as plt
 import maxflow
 from PIL import Image
+import cv2
 from torchnet.meter import AverageValueMeter
 
 use_gpu = True
@@ -27,13 +28,30 @@ def colormap(n):
 def pred2segmentation(prediction):
     return prediction.max(1)[1]
 
+def dice_loss_numpy(input, target):
+    # with torch.no_grad:
+    smooth = 1.
+    iflat = input.reshape(input.shape[0], -1)
+    tflat = target.reshape(input.shape[0], -1)
+    intersection = (iflat * tflat).sum(1)
+
+    foreground_iou = float(
+        ((2. * intersection + smooth) / (iflat.sum(1) + tflat.sum(1) + smooth)).mean())
+
+    iflat = 1 - iflat
+    tflat = 1 - tflat
+    intersection = (iflat * tflat).sum(1)
+    background_iou = float(
+        ((2. * intersection + smooth) / (iflat.sum(1) + tflat.sum(1) + smooth)).mean())
+
+    return [background_iou, foreground_iou]
 
 def dice_loss(input, target):
     # with torch.no_grad:
     smooth = 1.
 
-    iflat = input.view(input.size(0), -1)
-    tflat = target.view(input.size(0), -1)
+    iflat = input.view(input.shape[0], -1)
+    tflat = target.view(input.shape[0], -1)
     intersection = (iflat * tflat).sum(1)
     # intersection = (iflat == tflat).sum(1)
 
@@ -164,3 +182,44 @@ def graphcut_refinement(prediction, image, kernel_size, lamda, sigma):
     # The labels should be 1 where sgm is False and 0 otherwise.
     new_segmentation = np.int_(np.logical_not(sgm))
     return torch.Tensor(new_segmentation).long().unsqueeze(0)
+
+def graphcut_with_FG_seed_and_BG_dlation(image, weak_mask, full_mask,kernal_size=5,lamda=1,sigma=0.01,dilation_level=5):
+    '''
+    :param image: numpy
+    :param weak_mask:
+    :param full_mask:
+    :param kernal_size:
+    :param lamda:
+    :param sigma:
+    :return:
+    '''
+    unary1 = np.zeros(image.squeeze().shape)
+    unary0 = np.zeros(unary1.shape)
+    unary1 [(weak_mask==1).astype(bool)]=-np.inf
+    kernel = np.ones((5, 5), np.uint8)
+    dilation = cv2.dilate(weak_mask.astype(np.float32), kernel, iterations=dilation_level)
+    unary0[(dilation != 1).astype(bool)] =- np.inf
+
+    g = maxflow.Graph[float](0, 0)
+    # Add the nodes.
+    nodeids = g.add_grid_nodes(list(image.shape))
+    # Add edges with the same capacities.
+
+    # g.add_grid_edges(nodeids, neighbor_term)
+    g = set_boundary_term(g, nodeids, image, kernel_size=kernal_size, lumda=lamda, sigma=sigma)
+
+    # Add the terminal edges.
+    g.add_grid_tedges(nodeids, (unary0).squeeze(),
+                      (unary1).squeeze())
+    g.maxflow()
+    # Get the segments.
+    sgm = g.get_grid_segments(nodeids) * 1
+
+    # The labels should be 1 where sgm is False and 0 otherwise.
+    new_gamma = np.int_(np.logical_not(sgm))
+    [db,df]=dice_loss_numpy(new_gamma[np.newaxis,:],full_mask[np.newaxis,:])
+    return [db,df]
+
+
+
+

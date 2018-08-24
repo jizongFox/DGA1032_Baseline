@@ -56,9 +56,9 @@ val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_work
 @click.command()
 @click.option('--baseline',default='ADMM', type=click.Choice(['ADMM', 'ADMM_size','ADMM_gc']))
 @click.option('--inneriter', default=5, help='iterative time in an inner admm loop')
-@click.option('--lamda', default=1.0, help='balance between unary and boundary terms')
-@click.option('--sigma', default=0.02, help='sigma in the boundary term of the graphcut')
-@click.option('--kernelsize', default=5, help='kernelsize of the graphcut')
+@click.option('--lamda', default=20, help='balance between unary and boundary terms')
+@click.option('--sigma', default=0.01, help='sigma in the boundary term of the graphcut')
+@click.option('--kernelsize', default=7, help='kernelsize of the graphcut')
 @click.option('--lowbound', default=93, help='lowbound')
 @click.option('--highbound', default=1728, help='highbound')
 @click.option('--saved_name', default='default_iou', help='default_save_name')
@@ -108,19 +108,19 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
     for iteration in tqdm(range(10000)):
         # choose randomly a batch of image from labeled dataset and unlabeled dataset.
         # Initialize the ADMM dummy variables for one-batch training
-
-        if (iteration+1 ) % 200 == 0:
-            unlabeled_ious = evaluate_iou(unlabeled_dataLoader, net.neural_net)
-            val_ious = evaluate_iou(val_loader, net.neural_net)
-            ious = np.array((unlabeled_ious, val_ious)).ravel().tolist()
-            ious_tables.append(ious)
-            try:
-                if not os.path.exists(os.path.join('results',filename)):
-                    os.mkdir(os.path.join('results',filename))
-
-                pd.DataFrame(ious_tables).to_csv(os.path.join('results',filename,'%s.csv' % variable_str),header=None)
-            except Exception as e:
-                print(e)
+        #
+        # if (iteration+1 ) % 200 == 0:
+        #     unlabeled_ious = evaluate_iou(unlabeled_dataLoader, net.neural_net)
+        #     val_ious = evaluate_iou(val_loader, net.neural_net)
+        #     ious = np.array((unlabeled_ious, val_ious)).ravel().tolist()
+        #     ious_tables.append(ious)
+        #     try:
+        #         if not os.path.exists(os.path.join('results',filename)):
+        #             os.mkdir(os.path.join('results',filename))
+        #
+        #         pd.DataFrame(ious_tables).to_csv(os.path.join('results',filename,'%s.csv' % variable_str),header=None)
+        #     except Exception as e:
+        #         print(e)
 
         try:
             labeled_img, labeled_mask, labeled_weak_mask = next(labeled_dataLoader_)[0:3]
