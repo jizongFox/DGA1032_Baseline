@@ -55,13 +55,14 @@ df_meter = AverageValueMeter()
 @click.command()
 @click.option('--sr', default=0.03)
 def run_pretrain(sr):
+
     split_ratio = sr
+
     labeled_dataset, unlabeled_dataset = split_label_unlabel_dataset(train_set, split_ratio)
+
     labeled_dataLoader = DataLoader(labeled_dataset, batch_size=1, num_workers=num_workers, shuffle=True)
-    # unlabeled_dataLoader = DataLoader(unlabeled_dataset, batch_size=1, num_workers=num_workers, shuffle=True)
+
     pretrain(labeled_dataLoader, val_loader, neural_net, split_ratio=split_ratio, path='')
-
-
 
 
 if __name__ == "__main__":
