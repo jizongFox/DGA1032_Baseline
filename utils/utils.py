@@ -5,7 +5,7 @@ import maxflow
 from PIL import Image
 import cv2
 from torchnet.meter import AverageValueMeter
-
+import copy
 use_gpu = True
 device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torch.device('cpu')
 
@@ -183,6 +183,7 @@ def graphcut_refinement(prediction, image, kernel_size, lamda, sigma):
     new_segmentation = np.int_(np.logical_not(sgm))
     return torch.Tensor(new_segmentation).long().unsqueeze(0)
 
+
 def graphcut_with_FG_seed_and_BG_dlation(image, weak_mask, full_mask,kernal_size=5,lamda=1,sigma=0.01,dilation_level=5):
     '''
     :param image: numpy
@@ -219,6 +220,37 @@ def graphcut_with_FG_seed_and_BG_dlation(image, weak_mask, full_mask,kernal_size
     new_gamma = np.int_(np.logical_not(sgm))
     [db,df]=dice_loss_numpy(new_gamma[np.newaxis,:],full_mask[np.newaxis,:])
     return [db,df]
+
+
+def split_label_unlabel_dataset(train_set, split_ratio):
+    np.random.seed(1)
+    torch.random.manual_seed(1)
+    random_index = np.random.permutation(len(train_set))
+    labeled_dataset = copy.deepcopy(train_set)
+    labeled_dataset.imgs = [train_set.imgs[x]
+                            for x in random_index[:int(len(random_index) * split_ratio)]]
+    unlabeled_dataset = copy.deepcopy(train_set)
+    unlabeled_dataset.imgs = [train_set.imgs[x]
+                              for x in random_index[int(len(random_index) * split_ratio):]]
+    return labeled_dataset,unlabeled_dataset
+
+
+def iter_image_pair(labeled_dataLoader,unlabeled_dataLoader):
+
+    labeled_dataLoader_, unlabeled_dataLoader_ = iter(labeled_dataLoader), iter(unlabeled_dataLoader)
+    try:
+        labeled_img, labeled_mask, labeled_weak_mask = next(labeled_dataLoader_)[0:3]
+    except:
+        labeled_dataLoader_ = iter(labeled_dataLoader)
+        labeled_img, labeled_mask, labeled_weak_mask = next(labeled_dataLoader_)[0:3]
+
+    try:
+        unlabeled_img, unlabeled_mask = next(unlabeled_dataLoader_)[0:2]
+    except:
+        unlabeled_dataLoader_ = iter(unlabeled_dataLoader)
+        unlabeled_img, unlabeled_mask = next(unlabeled_dataLoader_)[0:2]
+
+    return (labeled_img, labeled_mask),(unlabeled_img, unlabeled_mask)
 
 
 

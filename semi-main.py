@@ -55,8 +55,8 @@ val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_work
 
 @click.command()
 @click.option('--baseline',default='ADMM', type=click.Choice(['ADMM', 'ADMM_size','ADMM_gc']))
-@click.option('--inneriter', default=5, help='iterative time in an inner admm loop')
-@click.option('--lamda', default=20, help='balance between unary and boundary terms')
+@click.option('--inneriter', default=50, help='iterative time in an inner admm loop')
+@click.option('--lamda', default=0, help='balance between unary and boundary terms')
 @click.option('--sigma', default=0.01, help='sigma in the boundary term of the graphcut')
 @click.option('--kernelsize', default=7, help='kernelsize of the graphcut')
 @click.option('--lowbound', default=93, help='lowbound')
@@ -93,13 +93,13 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
 
     plt.ion()
     if baseline =='ADMM':
-        net = ADMM_networks(neural_net, lowerbound=lowbound, upperbound=highbound, lamda=lamda, sigma=sigma,
+        net = ADMM_networks(neural_net, lr=lr,lowerbound=lowbound, upperbound=highbound, lamda=lamda, sigma=sigma,
                             kernelsize=kernelsize)
     elif baseline=='ADMM_gc':
-        net = ADMM_network_without_sizeConstraint(neural_net,lamda=lamda, sigma=sigma,kernelsize=kernelsize)
+        net = ADMM_network_without_sizeConstraint(neural_net,lr=lr,lamda=lamda, sigma=sigma,kernelsize=kernelsize)
 
     elif baseline=='ADMM_size':
-        net = ADMM_network_without_graphcut(neural_net,lowerbound=lowbound,upperbound=highbound)
+        net = ADMM_network_without_graphcut(neural_net,lr=lr,lowerbound=lowbound,upperbound=highbound)
     else:
         raise ValueError
 
@@ -147,7 +147,10 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
             net.update((labeled_img, labeled_mask),
                        (unlabeled_img, unlabeled_mask))
             net.show_gamma()
-            net.reset()
+            net.show_heatmap()
+            net.show_u()
+            net.show_s()
+        net.reset()
 
 
 if __name__ == "__main__":

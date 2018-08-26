@@ -21,13 +21,13 @@ class ADMM_networks(object):
     u,v: numpy of shape b h w
     '''
 
-    def __init__(self, neural_network, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5):
+    def __init__(self, neural_network,lr, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5):
         super(ADMM_networks, self).__init__()
         self.lowbound = lowerbound
         self.upbound = upperbound
         self.neural_net = neural_network
         self.reset()
-        self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=0.0001)
+        self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=lr)
         self.CEloss_criterion = CrossEntropyLoss2d()
         self.p_u = 1.0
         self.p_v = 1.0
@@ -79,7 +79,7 @@ class ADMM_networks(object):
 
         self.neural_net.zero_grad()
 
-        for i in range(5):
+        for i in range(3):
             CE_loss = self.CEloss_criterion(self.limage_output, self.lmask.squeeze(1))
             unlabled_loss = self.p_u / 2 * (F.softmax(self.uimage_output, dim=1)[:, 1] + torch.from_numpy(
                 -self.gamma + self.u).float().to(device)).norm(p=2) ** 2 \
@@ -88,11 +88,10 @@ class ADMM_networks(object):
             unlabled_loss /= list(self.uimage_output.reshape(-1).size())[0]
 
             loss = CE_loss + unlabled_loss
-            # loss = unlabled_loss
+
             self.optimiser.zero_grad()
             loss.backward()
             self.optimiser.step()
-            # print('loss:', loss.item())
 
             self.uimage_forward(self.uimage, self.umask)
             self.limage_forward(self.limage, self.lmask)
@@ -115,7 +114,7 @@ class ADMM_networks(object):
             shifted_matrix = np.roll(shifted_matrix, -dx, axis=1)
             return shifted_matrix
 
-        for p in position[:int(len(position)/2)]:
+        for p in position[:int(len(position) / 2)]:
             structure = np.zeros(kernel.shape)
             structure[p[0], p[1]] = kernel[p[0], p[1]]
             pad_im = np.pad(img, ((padding_size, padding_size), (padding_size, padding_size)), 'constant',
@@ -137,7 +136,6 @@ class ADMM_networks(object):
         unary_term_gamma_0 = np.zeros(unary_term_gamma_1.shape)
         new_gamma = np.zeros(self.gamma.shape)
         g = maxflow.Graph[float](0, 0)
-        i = 0
         # Add the nodes.
         nodeids = g.add_grid_nodes(list(self.gamma.shape)[1:])
         # Add edges with the same capacities.
@@ -146,15 +144,15 @@ class ADMM_networks(object):
         g = self.set_boundary_term(g, nodeids, self.uimage, lumda=self.lamda, sigma=self.sigma)
 
         # Add the terminal edges.
-        g.add_grid_tedges(nodeids, (unary_term_gamma_0[i]).squeeze(),
-                          (unary_term_gamma_1[i]).squeeze())
+        g.add_grid_tedges(nodeids, (unary_term_gamma_0[0]).squeeze(),
+                          (unary_term_gamma_1[0]).squeeze())
         g.maxflow()
         # Get the segments.
         sgm = g.get_grid_segments(nodeids) * 1
 
         # The labels should be 1 where sgm is False and 0 otherwise.
-        new_gamma[i] = np.int_(np.logical_not(sgm))
-        # g.reset()
+        new_gamma[0] = np.int_(np.logical_not(sgm))
+
         if new_gamma.sum() > 0:
             self.gamma = new_gamma
         else:
@@ -174,12 +172,12 @@ class ADMM_networks(object):
 
     def update_u(self):
 
-        new_u = self.u + (self.uimage_output[0, 1].cpu().data.numpy() - self.gamma) * 0.001
+        new_u = self.u + (F.softmax(self.uimage_output,dim=1)[0, 1].cpu().data.numpy() - self.gamma)
         self.u = new_u
         pass
 
     def update_v(self):
-        new_v = self.v + (self.uimage_output[0, 1].cpu().data.numpy() - self.s) * 0.001
+        new_v = self.v + (F.softmax(self.uimage_output,dim=1)[0, 1].cpu().data.numpy() - self.s)
         self.v = new_v
         pass
 
@@ -288,7 +286,7 @@ class ADMM_networks(object):
         plt.clf()
         plt.title('Multipicator')
         plt.subplot(1, 1, 1)
-        plt.imshow(np.abs(self.u.squeeze()))
+        plt.imshow(self.u.squeeze())
         plt.colorbar()
         plt.show(block=False)
         plt.pause(0.01)
@@ -296,18 +294,35 @@ class ADMM_networks(object):
     def show_s(self):
         plt.figure(5, figsize=(5, 5))
         plt.clf()
-        plt.title('Multipicator')
+        plt.title('S size loss')
         plt.subplot(1, 1, 1)
-        plt.imshow(np.abs(self.s.squeeze()))
+        plt.imshow(self.s.squeeze())
         plt.colorbar()
+        plt.show(block=False)
+        plt.pause(0.01)
+
+    def show_heatmap(self):
+        plt.figure(10, figsize=(5, 5))
+        # plt.gray()
+        plt.clf()
+        plt.subplot(1, 1, 1)
+        # plt.imshow(self.image[0].cpu().data.numpy().squeeze(), cmap='gray')
+        plt.imshow(F.softmax(self.uimage_output, dim=1)[:, 1].cpu().data.squeeze().numpy(), cmap='gray', alpha=0.5)
+        plt.colorbar()
+        # plt.contour(self.heatmap2segmentation(self.image_output).squeeze().cpu().data.numpy(), level=[0],
+        #             colors="green", alpha=0.2, linewidth=0.001, label='CNN')
+        plt.title('heatmap')
+        # figManager = plt.get_current_fig_manager()
+        # figManager.window.showMaximized()
+        # plt.legend()
         plt.show(block=False)
         plt.pause(0.01)
 
 
 class ADMM_network_without_sizeConstraint(ADMM_networks):
 
-    def __init__(self, neural_network, lamda=1, sigma=0.02, kernelsize=7):
-        super().__init__(neural_network, lamda=lamda, sigma=sigma, kernelsize=kernelsize, lowerbound=0, upperbound=0, )
+    def __init__(self, neural_network, lr, lamda=1, sigma=0.02, kernelsize=7):
+        super().__init__(neural_network, lr=lr,lamda=lamda, sigma=sigma, kernelsize=kernelsize, lowerbound=0, upperbound=0, )
 
     def update_theta(self):
         self.neural_net.zero_grad()
@@ -317,7 +332,6 @@ class ADMM_network_without_sizeConstraint(ADMM_networks):
             unlabled_loss = self.p_u / 2 * (F.softmax(self.uimage_output, dim=1)[:, 1] + torch.from_numpy(
                 -self.gamma + self.u).float().to(device)).norm(p=2) ** 2
             unlabled_loss /= list(self.uimage_output.reshape(-1).size())[0]
-
             loss = CE_loss + unlabled_loss
             self.optimiser.zero_grad()
             loss.backward()
@@ -341,11 +355,9 @@ class ADMM_network_without_sizeConstraint(ADMM_networks):
 
     def show_gamma(self):
         plt.figure(3, figsize=(5, 5))
-        # plt.gray()
         plt.clf()
         plt.subplot(1, 1, 1)
         plt.imshow(self.uimage[0].cpu().data.numpy().squeeze(), cmap='gray')
-        # plt.imshow(self.gamma[0])
         plt.contour(self.umask.squeeze().cpu().data.numpy(), level=[0], colors="yellow", alpha=0.2, linewidth=1)
 
         plt.contour(self.gamma[0], level=[0], colors="red", alpha=0.2, linewidth=0.001)
@@ -354,10 +366,9 @@ class ADMM_network_without_sizeConstraint(ADMM_networks):
         plt.show(block=False)
         plt.pause(0.01)
 
-
 class ADMM_network_without_graphcut(ADMM_networks):
-    def __init__(self, neural_network, lowerbound=50, upperbound=1723):
-        super().__init__(neural_network, lowerbound, upperbound, lamda=0, sigma=0, kernelsize=5)
+    def __init__(self, neural_network, lr,lowerbound=50, upperbound=1723):
+        super().__init__(neural_network, lr,lowerbound, upperbound, lamda=0, sigma=0, kernelsize=5)
 
     def update_theta(self):
         self.neural_net.zero_grad()
@@ -405,49 +416,10 @@ class ADMM_network_without_graphcut(ADMM_networks):
 
 class weakly_ADMM_network(ADMM_networks):
 
-    def __init__(self, neural_network, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5):
+    def __init__(self, neural_network, lr, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5):
         super().__init__(neural_network, lowerbound, upperbound, lamda, sigma, kernelsize)
-        self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=0.01)
+        self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=lr)
         self.CEloss_criterion = CrossEntropyLoss2d(torch.Tensor([0, 1]).float()).to(device)
-
-    def update_gamma(self):
-        unary_term_gamma_1 = np.multiply(
-            (0.5 - (F.softmax(self.image_output, dim=1).cpu().data.numpy()[:, 1, :, :] +self.u)),
-            1)
-        unary_term_gamma_1[(self.weak_mask.squeeze(dim=1).cpu().data.numpy() == 1).astype(bool)] = -np.inf
-
-        weak_mask = self.weak_mask.cpu().squeeze().numpy()
-        assert len(weak_mask.shape)==2
-        kernel = np.ones((5, 5), np.uint8)
-        dilation = cv2.dilate(weak_mask.astype(np.float32),kernel, iterations=6)
-        unary_term_gamma_0 = np.zeros(unary_term_gamma_1.shape)
-        unary_term_gamma_1[0][dilation!=1]=np.inf
-
-
-        new_gamma = np.zeros(self.gamma.shape)
-        g = maxflow.Graph[float](0, 0)
-        i = 0
-        # Add the nodes.
-        nodeids = g.add_grid_nodes(list(self.gamma.shape)[1:])
-        # Add edges with the same capacities.
-
-        # g.add_grid_edges(nodeids, neighbor_term)
-        g = self.set_boundary_term(g, nodeids, self.image, lumda=self.lamda, sigma=self.sigma)
-
-        # Add the terminal edges.
-        g.add_grid_tedges(nodeids, (unary_term_gamma_0[i]).squeeze(),
-                          (unary_term_gamma_1[i]).squeeze())
-        g.maxflow()
-        # Get the segments.
-        sgm = g.get_grid_segments(nodeids) * 1
-
-        # The labels should be 1 where sgm is False and 0 otherwise.
-        new_gamma[i] = np.int_(np.logical_not(sgm))
-        # g.reset()
-        if new_gamma.sum() > 0:
-            self.gamma = new_gamma
-        else:
-            self.gamma = self.s
 
     def update(self, image_pair, full_mask):
         [image, weak_mask] = image_pair
@@ -458,6 +430,32 @@ class weakly_ADMM_network(ADMM_networks):
         self.update_theta()
         self.update_u()
         self.update_v()
+
+    def update_gamma(self):
+        unary_term_gamma_1 = np.multiply(
+            (0.5 - (F.softmax(self.image_output, dim=1).cpu().data.numpy()[:, 1, :, :] + self.u)),
+            1)
+        unary_term_gamma_1[(self.weak_mask.squeeze(dim=1).cpu().data.numpy() == 1).astype(bool)] = -np.inf
+
+        weak_mask = self.weak_mask.cpu().squeeze().numpy()
+
+        kernel = np.ones((5, 5), np.uint8)
+        dilation = cv2.dilate(weak_mask.astype(np.float32), kernel, iterations=6)
+        unary_term_gamma_0 = np.zeros(unary_term_gamma_1.shape)
+        unary_term_gamma_1[0][dilation != 1] = np.inf
+        new_gamma = np.zeros(self.gamma.shape)
+        g = maxflow.Graph[float](0, 0)
+        nodeids = g.add_grid_nodes(list(self.gamma.shape)[1:])
+        g = self.set_boundary_term(g, nodeids, self.image, lumda=self.lamda, sigma=self.sigma)
+        g.add_grid_tedges(nodeids, (unary_term_gamma_0[0]).squeeze(),
+                          (unary_term_gamma_1[0]).squeeze())
+        g.maxflow()
+        sgm = g.get_grid_segments(nodeids) * 1
+        new_gamma[0] = np.int_(np.logical_not(sgm))
+        if new_gamma.sum() > 0:
+            self.gamma = new_gamma
+        else:
+            self.gamma = self.s
 
     def image_forward(self, image, weak_mask):
         self.weak_mask = weak_mask
@@ -493,47 +491,34 @@ class weakly_ADMM_network(ADMM_networks):
 
         for i in range(5):
             CE_loss = self.CEloss_criterion(self.image_output, self.weak_mask.squeeze(1).long())
-            unlabled_loss =  self.p_u / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(
-                -self.gamma + self.u).float().to(device)).norm(p=2)**2\
-            + self.p_v / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(-self.s + self.v).float().to(
+            unlabled_loss = self.p_u / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(
+                -self.gamma + self.u).float().to(device)).norm(p=2) ** 2 \
+                            + self.p_v / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(
+                -self.s + self.v).float().to(
                 device)).norm(p=2) ** 2
 
             unlabled_loss /= list(self.image_output.reshape(-1).size())[0]
 
-            loss = CE_loss +unlabled_loss
-            # loss = unlabled_loss
+            loss = CE_loss + unlabled_loss
             self.optimiser.zero_grad()
             loss.backward()
             self.optimiser.step()
-            # print(loss.item())
-
             self.image_forward(self.image, self.weak_mask)
 
-
-
     def update_u(self):
-
-        # new_u = self.u + (F.softmax(self.uimage_output, dim=1)[:, 1, :, :].cpu().data.numpy() - self.gamma)
-        new_u = self.u + (self.heatmap2segmentation(self.image_output).cpu().data.numpy() - self.gamma) * 0.001
-        # assert new_u.shape == self.u.shape
+        new_u = self.u + (F.softmax(self.image_output, dim=1)[:, 1, :, :].cpu().data.numpy() - self.gamma)
         self.u = new_u
-        pass
 
     def update_v(self):
-
-        # new_u = self.u + (F.softmax(self.uimage_output, dim=1)[:, 1, :, :].cpu().data.numpy() - self.gamma)
-        new_v = self.v + (self.heatmap2segmentation(self.image_output).cpu().data.numpy() - self.s) * 0.001
-        # assert new_u.shape == self.u.shape
+        new_v = self.v + (F.softmax(self.image_output, dim=1)[:, 1, :, :].cpu().data.numpy() - self.s)
         self.v = new_v
-        pass
 
     def show_gamma(self):
         plt.figure(3, figsize=(5, 5))
-        # plt.gray()
         plt.clf()
         plt.subplot(1, 1, 1)
         plt.imshow(self.image[0].cpu().data.numpy().squeeze(), cmap='gray')
-        # plt.imshow(self.gamma[0])
+
         plt.contour(self.weak_mask.squeeze().cpu().data.numpy(), level=[0], colors="yellow", alpha=0.2, linewidth=0.001,
                     label='GT')
         plt.contour(self.full_mask.squeeze().cpu().data.numpy(), level=[0], colors="yellow", alpha=0.2, linewidth=0.001,
@@ -556,7 +541,7 @@ class weakly_ADMM_network(ADMM_networks):
         plt.clf()
         plt.subplot(1, 1, 1)
         # plt.imshow(self.image[0].cpu().data.numpy().squeeze(), cmap='gray')
-        plt.imshow(F.softmax(self.image_output,dim=1)[:,1].cpu().data.squeeze().numpy(),cmap='gray',alpha=0.5)
+        plt.imshow(F.softmax(self.image_output, dim=1)[:, 1].cpu().data.squeeze().numpy(), cmap='gray', alpha=0.5)
         plt.colorbar()
         # plt.contour(self.heatmap2segmentation(self.image_output).squeeze().cpu().data.numpy(), level=[0],
         #             colors="green", alpha=0.2, linewidth=0.001, label='CNN')
@@ -570,31 +555,30 @@ class weakly_ADMM_network(ADMM_networks):
 
 class weakly_ADMM_without_sizeConstraint(weakly_ADMM_network):
 
-    def __init__(self, neural_network, lamda=1.0, sigma=0.02, kernelsize=5):
-        super().__init__(neural_network, lowerbound=0, upperbound=0, lamda=lamda, sigma=sigma, kernelsize=kernelsize)
+    def __init__(self, neural_network,lr, lamda=1.0, sigma=0.02, kernelsize=5):
+        super().__init__(neural_network, lr,lowerbound=0, upperbound=0, lamda=lamda, sigma=sigma, kernelsize=kernelsize)
 
     def update_theta(self):
         self.neural_net.zero_grad()
-
         for i in range(5):
             CE_loss = self.CEloss_criterion(self.image_output, self.weak_mask.squeeze(1).long())
-            unlabled_loss =  self.p_u / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(
-                -self.gamma + self.u).float().to(device)).norm(p=2)**2
+            unlabled_loss = self.p_u / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(
+                -self.gamma + self.u).float().to(device)).norm(p=2) ** 2
 
             unlabled_loss /= list(self.image_output.reshape(-1).size())[0]
 
             loss = CE_loss + unlabled_loss
-            # loss = unlabled_loss
             self.optimiser.zero_grad()
             loss.backward()
             self.optimiser.step()
-            # print(loss.item())
-
             self.image_forward(self.image, self.weak_mask)
+
     def update_v(self):
         pass
+
     def update_s(self):
         pass
+
     def update(self, image_pair, full_mask):
         [image, weak_mask] = image_pair
         self.full_mask = full_mask
@@ -629,8 +613,9 @@ class weakly_ADMM_without_sizeConstraint(weakly_ADMM_network):
 
 class weakly_ADMM_without_gc(weakly_ADMM_network):
 
-    def __init__(self, neural_network, lowerbound, upperbound):
-        super().__init__(neural_network, lowerbound, upperbound, lamda=1, sigma=1, kernelsize=5)
+    def __init__(self, lr,neural_network, lowerbound, upperbound):
+        super().__init__(neural_network,lr, lowerbound, upperbound, lamda=1, sigma=1, kernelsize=5)
+
     def update(self, image_pair, full_mask):
         [image, weak_mask] = image_pair
         self.full_mask = full_mask
@@ -640,17 +625,17 @@ class weakly_ADMM_without_gc(weakly_ADMM_network):
         self.update_v()
 
     def update_theta(self):
-
         self.neural_net.zero_grad()
 
         for i in range(5):
             CE_loss = self.CEloss_criterion(self.image_output, self.weak_mask.squeeze(1).long())
-            unlabled_loss =  self.p_v / 2 * (F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(-self.s + self.v).float().to(
-                device)).norm(p=2) ** 2
+            unlabled_loss = self.p_v / 2 * (
+                        F.softmax(self.image_output, dim=1)[:, 1] + torch.from_numpy(-self.s + self.v).float().to(
+                    device)).norm(p=2) ** 2
 
             unlabled_loss /= list(self.image_output.reshape(-1).size())[0]
 
-            loss = CE_loss +unlabled_loss
+            loss = CE_loss + unlabled_loss
             # loss = unlabled_loss
             self.optimiser.zero_grad()
             loss.backward()
@@ -661,8 +646,10 @@ class weakly_ADMM_without_gc(weakly_ADMM_network):
 
     def update_gamma(self):
         pass
+
     def update_u(self):
         pass
+
     def show_gamma(self):
         plt.figure(3, figsize=(5, 5))
         # plt.gray()
