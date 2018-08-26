@@ -30,7 +30,7 @@ def pretrain(train_dataloader, val_dataloader_, network, lr=0.001, split_ratio=0
     highest_iou = -1
     class config:
         lr = 1e-3
-        epochs = 500
+        epochs = 120
         path = 'checkpoint'
 
     pretrain_config = config()
@@ -41,13 +41,15 @@ def pretrain(train_dataloader, val_dataloader_, network, lr=0.001, split_ratio=0
 
     network.to(device)
     criterion_ = CrossEntropyLoss2d()
-    optimiser_ = torch.optim.Adam(network.parameters(), pretrain_config.lr)
+    optimiser_ = torch.optim.Adam(network.parameters(), pretrain_config.lr, weight_decay=1e-5)
     loss_meter = AverageValueMeter()
 
     fiou_tables = []
 
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimiser_,milestones=[30,80,100],gamma=0.25)
     for iteration in range(pretrain_config.epochs):
         loss_meter.reset()
+        scheduler.step()
 
         for i, (img, mask, weak_mask, _) in tqdm(enumerate(train_dataloader)):
             img, mask = img.to(device), mask.to(device)
