@@ -510,11 +510,11 @@ class weakly_ADMM_network(ADMM_networks):
             self.image_forward(self.image, self.weak_mask)
 
     def update_u(self):
-        new_u = self.u + (F.softmax(self.image_output, dim=1)[:, 1, :, :].cpu().data.numpy() - self.gamma)
+        new_u = self.u + (F.softmax(self.image_output, dim=1)[:, 1, :, :].cpu().data.numpy() - self.gamma)*0.01
         self.u = new_u
 
     def update_v(self):
-        new_v = self.v + (F.softmax(self.image_output, dim=1)[:, 1, :, :].cpu().data.numpy() - self.s)
+        new_v = self.v + (F.softmax(self.image_output, dim=1)[:, 1, :, :].cpu().data.numpy() - self.s)*0.01
         self.v = new_v
 
     def show_gamma(self):

@@ -29,7 +29,7 @@ device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torc
 batch_size = 1
 batch_size_val = 1
 num_workers = 1
-lr = 0.01
+lr = 0.001
 max_epoch = 100
 data_dir = 'dataset/ACDC-2D-All'
 
@@ -100,7 +100,6 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
             img, full_mask, weak_mask = img.to(device), full_mask.to(device), weak_mask.to(device)
 
             for i in range(inneriter):
-                # net.neural_net.eval()
                 net.update((img, weak_mask), full_mask)
                 net.show_gamma()
                 net.show_heatmap()

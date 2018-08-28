@@ -31,9 +31,10 @@ device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torc
 batch_size = 1
 batch_size_val = 1
 num_workers = 1
-lr = 0.001
+lr = 0.0001
 max_epoch = 100
 data_dir = 'dataset/ACDC-2D-All'
+
 
 
 color_transform = Colorize()
@@ -52,13 +53,12 @@ val_set = medicalDataLoader.MedicalImageDataset('val', data_dir, transform=trans
                                                 equalize=False)
 val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_workers, shuffle=True)
 
-
 @click.command()
 @click.option('--baseline',default='ADMM', type=click.Choice(['ADMM', 'ADMM_size','ADMM_gc']))
-@click.option('--inneriter', default=500, help='iterative time in an inner admm loop')
-@click.option('--lamda', default=10, help='balance between unary and boundary terms')
+@click.option('--inneriter', default=5, help='iterative time in an inner admm loop')
+@click.option('--lamda', default=1, help='balance between unary and boundary terms')
 @click.option('--sigma', default=0.01, help='sigma in the boundary term of the graphcut')
-@click.option('--kernelsize', default=7, help='kernelsize of the graphcut')
+@click.option('--kernelsize', default=5, help='kernelsize of the graphcut')
 @click.option('--lowbound', default=93, help='lowbound')
 @click.option('--highbound', default=1728, help='highbound')
 @click.option('--saved_name', default='default_iou', help='default_save_name')
@@ -77,12 +77,12 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
     ##==================================================================================================================
     neural_net = Enet(2)
     map_location = lambda storage, loc: storage
-    # neural_net.load_state_dict(torch.load(
-    #     'checkpoint/model_0.6664_split_0.050.pth', map_location=map_location))
+    neural_net.load_state_dict(torch.load(
+        'semi_pretrain_checkpoint/model_0.7989_split_0.050.pth', map_location=map_location))
     neural_net.to(device)
 
-    pretrain(labeled_dataLoader,val_loader,network=neural_net,split_ratio=split_ratio)
-    return
+    # pretrain(labeled_dataLoader,val_loader,network=neural_net,split_ratio=split_ratio)
+    # return
     plt.ion()
     if baseline =='ADMM':
         net = ADMM_networks(neural_net, lr=lr,lowerbound=lowbound, upperbound=highbound, lamda=lamda, sigma=sigma,
@@ -116,11 +116,11 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
         # skip those with no foreground masks
         if labeled_mask.sum() <= 0 or unlabeled_mask.sum() <= 0:
             continue
+
         labeled_img, labeled_mask= labeled_img.to(device), labeled_mask.to(device)
         unlabeled_img, unlabeled_mask = unlabeled_img.to(device), unlabeled_mask.to(device)
 
         for i in range(inneriter):
-            # net.neural_net.eval()
             net.update((labeled_img, labeled_mask),
                        (unlabeled_img, unlabeled_mask))
             net.show_gamma()
