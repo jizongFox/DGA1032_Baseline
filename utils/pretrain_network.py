@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 from torchnet.meter import AverageValueMeter
-
+import matplotlib.pyplot as plt
 from utils.criterion import CrossEntropyLoss2d
 from utils.utils import dice_loss
 
@@ -12,32 +12,38 @@ device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torc
 
 
 def val(val_dataloader, network):
-    network.eval()
+    # network.eval()
     f_dice_meter = AverageValueMeter()
     f_dice_meter.reset()
-    for i, (image, mask, _, _) in enumerate(val_dataloader):
-        image, mask = image.to(device), mask.to(device)
-        proba = F.softmax(network(image), dim=1)
-        predicted_mask = proba.max(1)[1]
-        [_,fiou] = dice_loss(predicted_mask, mask)
-        f_dice_meter.add(fiou)
-    network.train()
+    with torch.no_grad():
+        for i, (image, mask, _, _) in enumerate(val_dataloader):
+            image, mask = image.to(device), mask.to(device)
+            proba = F.softmax(network(image), dim=1)
+            predicted_mask = proba.max(1)[1]
+            [_,fiou] = dice_loss(predicted_mask, mask)
+            f_dice_meter.add(fiou)
+            # plt.imshow(predicted_mask.squeeze())
+            # plt.colorbar()
+            # plt.show()
+    # network.train()
     print('val iou:  %.8f' % f_dice_meter.value()[0])
     return f_dice_meter.value()[0]
 
-
-def pretrain(train_dataloader, val_dataloader_, network, lr=0.001, split_ratio=0.03,path=None):
+def pretrain(train_dataloader, val_dataloader_, network, lr=5e-4, split_ratio=0.05,path=None):
     highest_iou = -1
     class config:
         lr = 1e-3
-        epochs = 120
-        path = 'checkpoint'
+        epochs = 1000
+        path = 'semi_pretrain_checkpoint'
 
     pretrain_config = config()
     pretrain_config.lr=lr
 
     if path:
         pretrain_config.path = path
+
+    if not os.path.exists(pretrain_config.path):
+        os.mkdir(pretrain_config.path)
 
     network.to(device)
     criterion_ = CrossEntropyLoss2d()
@@ -46,7 +52,7 @@ def pretrain(train_dataloader, val_dataloader_, network, lr=0.001, split_ratio=0
 
     fiou_tables = []
 
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimiser_,milestones=[30,80,100],gamma=0.25)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimiser_,milestones=[200,400,600,800],gamma=0.25)
     for iteration in range(pretrain_config.epochs):
         loss_meter.reset()
         scheduler.step()
@@ -59,6 +65,8 @@ def pretrain(train_dataloader, val_dataloader_, network, lr=0.001, split_ratio=0
             loss.backward()
             optimiser_.step()
             loss_meter.add(loss.item())
+
+
 
         print('train_loss: %.6f' % loss_meter.value()[0])
 

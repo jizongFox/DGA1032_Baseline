@@ -18,7 +18,7 @@ import utils.medicalDataLoader as medicalDataLoader
 from ADMM import ADMM_networks, ADMM_network_without_sizeConstraint, ADMM_network_without_graphcut
 from utils.enet import Enet
 from utils.pretrain_network import pretrain
-from utils.utils import Colorize, dice_loss, evaluate_iou
+from utils.utils import Colorize, dice_loss, evaluate_iou,split_label_unlabel_dataset,iter_image_pair
 
 from tqdm import tqdm
 import click
@@ -55,8 +55,8 @@ val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_work
 
 @click.command()
 @click.option('--baseline',default='ADMM', type=click.Choice(['ADMM', 'ADMM_size','ADMM_gc']))
-@click.option('--inneriter', default=50, help='iterative time in an inner admm loop')
-@click.option('--lamda', default=0, help='balance between unary and boundary terms')
+@click.option('--inneriter', default=500, help='iterative time in an inner admm loop')
+@click.option('--lamda', default=10, help='balance between unary and boundary terms')
 @click.option('--sigma', default=0.01, help='sigma in the boundary term of the graphcut')
 @click.option('--kernelsize', default=7, help='kernelsize of the graphcut')
 @click.option('--lowbound', default=93, help='lowbound')
@@ -68,29 +68,21 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
     ious_tables.append([baseline,inneriter, lamda, sigma, kernelsize, lowbound, highbound, saved_name])
 
     # Here we have to split the fully annotated dataset and unannotated dataset
-    split_ratio = 0.03
-    random_index = np.random.permutation(len(train_set))
-    labeled_dataset = copy.deepcopy(train_set)
-    labeled_dataset.imgs = [train_set.imgs[x]
-                            for x in random_index[:int(len(random_index) * split_ratio)]]
-    unlabeled_dataset = copy.deepcopy(train_set)
-    unlabeled_dataset.imgs = [train_set.imgs[x]
-                              for x in random_index[int(len(random_index) * split_ratio):]]
-    labeled_dataLoader = DataLoader(
-        labeled_dataset, batch_size=1, num_workers=num_workers, shuffle=True)
-    unlabeled_dataLoader = DataLoader(
-        unlabeled_dataset, batch_size=1, num_workers=num_workers, shuffle=True)
+    split_ratio = 0.05
+    labeled_dataset, unlabeled_dataset=split_label_unlabel_dataset(train_set,split_ratio)
+    labeled_dataLoader = DataLoader(labeled_dataset, batch_size=1, num_workers=num_workers, shuffle=True)
+    unlabeled_dataLoader = DataLoader(unlabeled_dataset, batch_size=1, num_workers=num_workers, shuffle=True)
     unlabeled_dataLoader.dataset.augmentation = False
 
     ##==================================================================================================================
     neural_net = Enet(2)
-
     map_location = lambda storage, loc: storage
-
-    neural_net.load_state_dict(torch.load(
-        'checkpoint/model_0.6649_split_0.030.pth', map_location=map_location))
+    # neural_net.load_state_dict(torch.load(
+    #     'checkpoint/model_0.6664_split_0.050.pth', map_location=map_location))
     neural_net.to(device)
 
+    pretrain(labeled_dataLoader,val_loader,network=neural_net,split_ratio=split_ratio)
+    return
     plt.ion()
     if baseline =='ADMM':
         net = ADMM_networks(neural_net, lr=lr,lowerbound=lowbound, upperbound=highbound, lamda=lamda, sigma=sigma,
@@ -103,13 +95,10 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
     else:
         raise ValueError
 
-
-    labeled_dataLoader_, unlabeled_dataLoader_ = iter(labeled_dataLoader), iter(unlabeled_dataLoader)
     for iteration in tqdm(range(10000)):
         # choose randomly a batch of image from labeled dataset and unlabeled dataset.
         # Initialize the ADMM dummy variables for one-batch training
-        #
-        # if (iteration+1 ) % 200 == 0:
+        # if (iteration ) % 200 == 0:
         #     unlabeled_ious = evaluate_iou(unlabeled_dataLoader, net.neural_net)
         #     val_ious = evaluate_iou(val_loader, net.neural_net)
         #     ious = np.array((unlabeled_ious, val_ious)).ravel().tolist()
@@ -122,34 +111,22 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
         #     except Exception as e:
         #         print(e)
 
-        try:
-            labeled_img, labeled_mask, labeled_weak_mask = next(labeled_dataLoader_)[0:3]
-        except:
-            labeled_dataLoader_ = iter(labeled_dataLoader)
-            labeled_img, labeled_mask, labeled_weak_mask = next(labeled_dataLoader_)[0:3]
-
-        labeled_img, labeled_mask, labeled_weak_mask = labeled_img.to(device), labeled_mask.to(
-            device), labeled_weak_mask.to(device)
-
-        try:
-            unlabeled_img, unlabeled_mask = next(unlabeled_dataLoader_)[0:2]
-        except:
-            unlabeled_dataLoader_ = iter(unlabeled_dataLoader)
-            unlabeled_img, unlabeled_mask = next(unlabeled_dataLoader_)[0:2]
+        (labeled_img, labeled_mask), (unlabeled_img, unlabeled_mask)=iter_image_pair(labeled_dataLoader,unlabeled_dataLoader)
 
         # skip those with no foreground masks
         if labeled_mask.sum() <= 0 or unlabeled_mask.sum() <= 0:
             continue
+        labeled_img, labeled_mask= labeled_img.to(device), labeled_mask.to(device)
         unlabeled_img, unlabeled_mask = unlabeled_img.to(device), unlabeled_mask.to(device)
 
         for i in range(inneriter):
-            net.neural_net.eval()
+            # net.neural_net.eval()
             net.update((labeled_img, labeled_mask),
                        (unlabeled_img, unlabeled_mask))
             net.show_gamma()
             net.show_heatmap()
-            net.show_u()
-            net.show_s()
+            # net.show_u()
+            # net.show_s()
         net.reset()
 
 

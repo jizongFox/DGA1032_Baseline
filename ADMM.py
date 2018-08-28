@@ -29,8 +29,8 @@ class ADMM_networks(object):
         self.reset()
         self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=lr)
         self.CEloss_criterion = CrossEntropyLoss2d()
-        self.p_u = 1.0
-        self.p_v = 1.0
+        self.p_u = 10
+        self.p_v = 10
         self.lamda = lamda
         self.sigma = sigma
         self.kernelsize = kernelsize
@@ -43,12 +43,16 @@ class ADMM_networks(object):
     def limage_forward(self, limage, lmask):
         self.limage = limage
         self.lmask = lmask
+        # self.neural_net.eval()
         self.limage_output = self.neural_net(limage)
+        # self.neural_net.train()
 
     def uimage_forward(self, uimage, umask):
         self.umask = umask
         self.uimage = uimage
+        # self.neural_net.eval()
         self.uimage_output = self.neural_net(uimage)
+        # self.neural_net.train()
 
         if self.gamma is None:
             self.initialize_dummy_variables(self.uimage_output)
@@ -172,12 +176,12 @@ class ADMM_networks(object):
 
     def update_u(self):
 
-        new_u = self.u + (F.softmax(self.uimage_output,dim=1)[0, 1].cpu().data.numpy() - self.gamma)
+        new_u = self.u + (F.softmax(self.uimage_output,dim=1)[0, 1].cpu().data.numpy() - self.gamma)*0.01
         self.u = new_u
         pass
 
     def update_v(self):
-        new_v = self.v + (F.softmax(self.uimage_output,dim=1)[0, 1].cpu().data.numpy() - self.s)
+        new_v = self.v + (F.softmax(self.uimage_output,dim=1)[0, 1].cpu().data.numpy() - self.s)*0.01
         self.v = new_v
         pass
 

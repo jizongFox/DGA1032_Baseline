@@ -69,7 +69,6 @@ def dice_loss(input, target):
 
 def evaluate_iou(val_dataloader, network):
     network.eval()
-
     b_dice_meter = AverageValueMeter()
     f_dice_meter = AverageValueMeter()
     with torch.no_grad():
