@@ -444,7 +444,7 @@ class weakly_ADMM_network(ADMM_networks):
         weak_mask = self.weak_mask.cpu().squeeze().numpy()
 
         kernel = np.ones((5, 5), np.uint8)
-        dilation = cv2.dilate(weak_mask.astype(np.float32), kernel, iterations=6)
+        dilation = cv2.dilate(weak_mask.astype(np.float32), kernel, iterations=7)
         unary_term_gamma_0 = np.zeros(unary_term_gamma_1.shape)
         unary_term_gamma_1[0][dilation != 1] = np.inf
         new_gamma = np.zeros(self.gamma.shape)
