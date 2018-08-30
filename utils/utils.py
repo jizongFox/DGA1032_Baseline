@@ -77,7 +77,7 @@ def evaluate_iou(val_dataloader, network,save=False):
         for i, (image, mask, weak_mask, pathname) in enumerate(val_dataloader):
             # if mask.sum()==0 or weak_mask.sum()==0:
             #     continue
-            image, mask = image.to(device), mask.to(device)
+            image, mask,weak_mask = image.to(device), mask.to(device),weak_mask.to(device)
             proba = F.softmax(network(image), dim=1)
             predicted_mask = proba.max(1)[1]
             [b_iou,f_iou] = dice_loss(predicted_mask, mask)

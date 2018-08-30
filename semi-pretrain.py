@@ -54,7 +54,7 @@ val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_work
 
 
 @click.command()
-@click.option('--split_ratio', default='0.05')
+@click.option('--split_ratio', default=0.05)
 def main(split_ratio):
     # Here we have to split the fully annotated dataset and unannotated dataset
     labeled_dataset, unlabeled_dataset = split_label_unlabel_dataset(train_set, float(split_ratio))
