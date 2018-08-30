@@ -432,6 +432,17 @@ class weakly_ADMM_network(ADMM_networks):
         self.update_u()
         self.update_v()
 
+    def update_1(self, image_pair, full_mask):
+        [image, weak_mask] = image_pair
+        self.full_mask = full_mask
+        self.image_forward(image, weak_mask)
+        self.update_gamma()
+        self.update_s()
+    def update_2(self):
+        self.update_theta()
+        self.update_u()
+        self.update_v()
+
     def update_gamma(self):
         unary_term_gamma_1 = np.multiply(
             (0.5 - (F.softmax(self.image_output, dim=1).cpu().data.numpy()[:, 1, :, :] + self.u)),
