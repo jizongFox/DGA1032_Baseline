@@ -71,11 +71,11 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
     neural_net = Enet(2)
     neural_net.to(device)
     if baseline == 'ADMM_weak':
-        net = weakly_ADMM_network(neural_net, lr,lowerbound=lowbound, upperbound=highbound, sigma=sigma, lamda=lamda)
+        net = weakly_ADMM_network(neural_net, lr, lowerbound=lowbound, upperbound=highbound, sigma=sigma, lamda=lamda)
     elif baseline == 'ADMM_weak_gc':
-        net = weakly_ADMM_without_sizeConstraint(neural_net,lr, lamda=lamda, sigma=sigma, kernelsize=kernelsize)
+        net = weakly_ADMM_without_sizeConstraint(neural_net, lr, lamda=lamda, sigma=sigma, kernelsize=kernelsize)
     elif baseline == 'ADMM_weak_size':
-        net = weakly_ADMM_without_gc(neural_net,lr, lowerbound=lowbound, upperbound=highbound)
+        net = weakly_ADMM_without_gc(neural_net, lr, lowerbound=lowbound, upperbound=highbound)
     else:
         raise ValueError
 

@@ -3,9 +3,10 @@ import torch, torch.nn.functional as F
 import numpy as np, pandas as pd, matplotlib.pyplot as plt
 import maxflow
 from PIL import Image
-import cv2
+import cv2,os
 from torchnet.meter import AverageValueMeter
 import copy
+from torchvision.utils import save_image,make_grid
 use_gpu = True
 device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torch.device('cpu')
 
@@ -67,20 +68,41 @@ def dice_loss(input, target):
     return [background_iou, foreground_iou]
 
 
-def evaluate_iou(val_dataloader, network):
+def evaluate_iou(val_dataloader, network,save=False):
     network.eval()
     b_dice_meter = AverageValueMeter()
     f_dice_meter = AverageValueMeter()
     with torch.no_grad():
+        images =[]
         for i, (image, mask, weak_mask, pathname) in enumerate(val_dataloader):
+            if mask.sum()==0 or weak_mask.sum()==0:
+                continue
             image, mask = image.to(device), mask.to(device)
             proba = F.softmax(network(image), dim=1)
             predicted_mask = proba.max(1)[1]
             [b_iou,f_iou] = dice_loss(predicted_mask, mask)
             b_dice_meter.add(b_iou)
             f_dice_meter.add(f_iou)
+            if save:
+                images= save_images(images, image,proba, mask, weak_mask)
+
+
     network.train()
-    return [b_dice_meter.value()[0],f_dice_meter.value()[0]]
+    if save:
+        grid = make_grid(images,nrow=4)
+        return [[b_dice_meter.value()[0],f_dice_meter.value()[0]],grid]
+
+    else:
+        return [[b_dice_meter.value()[0],f_dice_meter.value()[0]],None]
+
+def save_images(images, img,prediction, mask, weak_mask):
+    if len(images)>=20*4:
+        return images
+    segm = pred2segmentation(prediction)
+    images.extend([img[0],weak_mask[0].float(),mask[0].float(),segm.float()])
+    return images
+
+
 
 
 class Colorize:
@@ -166,6 +188,10 @@ def graphcut_refinement(prediction, image, kernel_size, lamda, sigma):
     :return: torch tensor long size (1,h,w)
     '''
     prediction_ = prediction.cpu().data.squeeze().numpy()
+    prediction_[(prediction_>0.5).astype(bool)]=(prediction_[(prediction_>0.5).astype(bool)]-0.5)*0.5/(prediction_.max()-0.5)+0.5
+    prediction_[(prediction_<0.5).astype(bool)]=(prediction_[(prediction_<0.5).astype(bool)]-0.5)*0.5/(0.5-prediction_.min())+0.5
+
+    # prediction_ = (prediction_- prediction_.min())/(prediction_- prediction_.min()).max()
     image_ = image.cpu().data.squeeze().numpy()
     unary_term_gamma_1 = 1 - prediction_
     unary_term_gamma_0 = prediction_

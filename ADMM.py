@@ -20,7 +20,6 @@ class ADMM_networks(object):
     gamma and s: numpy of shape b h w
     u,v: numpy of shape b h w
     '''
-
     def __init__(self, neural_network,lr, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5):
         super(ADMM_networks, self).__init__()
         self.lowbound = lowerbound
@@ -322,7 +321,6 @@ class ADMM_networks(object):
         plt.show(block=False)
         plt.pause(0.01)
 
-
 class ADMM_network_without_sizeConstraint(ADMM_networks):
 
     def __init__(self, neural_network, lr, lamda=1, sigma=0.02, kernelsize=7):
@@ -416,7 +414,6 @@ class ADMM_network_without_graphcut(ADMM_networks):
                     colors="green", alpha=0.2, linewidth=0.001)
         plt.show(block=False)
         plt.pause(0.01)
-
 
 class weakly_ADMM_network(ADMM_networks):
 
@@ -556,7 +553,6 @@ class weakly_ADMM_network(ADMM_networks):
         plt.show(block=False)
         plt.pause(0.01)
 
-
 class weakly_ADMM_without_sizeConstraint(weakly_ADMM_network):
 
     def __init__(self, neural_network,lr, lamda=1.0, sigma=0.02, kernelsize=5):
@@ -613,7 +609,6 @@ class weakly_ADMM_without_sizeConstraint(weakly_ADMM_network):
         # plt.legend()
         plt.show(block=False)
         plt.pause(0.01)
-
 
 class weakly_ADMM_without_gc(weakly_ADMM_network):
 

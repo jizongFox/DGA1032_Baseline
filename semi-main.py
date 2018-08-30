@@ -6,7 +6,7 @@ import pandas as pd
 
 sys.path.insert(-1, os.getcwd())
 import warnings
-
+from torchvision.utils import save_image,make_grid
 warnings.filterwarnings('ignore')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,7 +18,7 @@ import utils.medicalDataLoader as medicalDataLoader
 from ADMM import ADMM_networks, ADMM_network_without_sizeConstraint, ADMM_network_without_graphcut
 from utils.enet import Enet
 from utils.pretrain_network import pretrain
-from utils.utils import Colorize, dice_loss, evaluate_iou,split_label_unlabel_dataset,iter_image_pair
+from utils.utils import Colorize, dice_loss, evaluate_iou,split_label_unlabel_dataset,iter_image_pair,graphcut_refinement
 
 from tqdm import tqdm
 import click
@@ -31,7 +31,7 @@ device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torc
 batch_size = 1
 batch_size_val = 1
 num_workers = 1
-lr = 0.0001
+lr = 0.01
 max_epoch = 100
 data_dir = 'dataset/ACDC-2D-All'
 
@@ -51,12 +51,12 @@ train_set = medicalDataLoader.MedicalImageDataset('train', data_dir, transform=t
                                                   augment=True, equalize=False)
 val_set = medicalDataLoader.MedicalImageDataset('val', data_dir, transform=transform, mask_transform=mask_transform,
                                                 equalize=False)
-val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_workers, shuffle=True)
+val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_workers, shuffle=False)
 
 @click.command()
 @click.option('--baseline',default='ADMM', type=click.Choice(['ADMM', 'ADMM_size','ADMM_gc']))
-@click.option('--inneriter', default=5, help='iterative time in an inner admm loop')
-@click.option('--lamda', default=1, help='balance between unary and boundary terms')
+@click.option('--inneriter', default=3, help='iterative time in an inner admm loop')
+@click.option('--lamda', default=10.0, help='balance between unary and boundary terms')
 @click.option('--sigma', default=0.01, help='sigma in the boundary term of the graphcut')
 @click.option('--kernelsize', default=5, help='kernelsize of the graphcut')
 @click.option('--lowbound', default=93, help='lowbound')
@@ -78,8 +78,9 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
     neural_net = Enet(2)
     map_location = lambda storage, loc: storage
     neural_net.load_state_dict(torch.load(
-        'semi_pretrain_checkpoint/model_0.7989_split_0.050.pth', map_location=map_location))
+        '/Users/jizong/workspace/DGA1032_grid_search/semi_pretrain_checkpoint/model_0.7099_split_0.030.pth', map_location=map_location))
     neural_net.to(device)
+    # neural_net.eval()
 
     # pretrain(labeled_dataLoader,val_loader,network=neural_net,split_ratio=split_ratio)
     # return
@@ -99,8 +100,10 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
         # choose randomly a batch of image from labeled dataset and unlabeled dataset.
         # Initialize the ADMM dummy variables for one-batch training
         # if (iteration ) % 200 == 0:
-        #     unlabeled_ious = evaluate_iou(unlabeled_dataLoader, net.neural_net)
-        #     val_ious = evaluate_iou(val_loader, net.neural_net)
+        #     [unlabeled_ious,train_grid]= evaluate_iou(unlabeled_dataLoader, net.neural_net,save=True)
+        #     [val_ious,val_grid]= evaluate_iou(val_loader, net.neural_net,save=True)
+        #     save_image(train_grid,os.path.join('results',filename,'train_grid_%.2d_f_dice_%.3f.png'%(iteration,unlabeled_ious[1])))
+        #     save_image(val_grid,os.path.join('results',filename,'val_grid_%.2d_f_dice_%.3f.png'%(iteration,val_ious[1])))
         #     ious = np.array((unlabeled_ious, val_ious)).ravel().tolist()
         #     ious_tables.append(ious)
         #     try:
