@@ -418,7 +418,7 @@ class ADMM_network_without_graphcut(ADMM_networks):
 class weakly_ADMM_network(ADMM_networks):
 
     def __init__(self, neural_network, lr, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5):
-        super().__init__(neural_network, lowerbound, upperbound, lamda, sigma, kernelsize)
+        super().__init__(neural_network, lr,lowerbound, upperbound, lamda, sigma, kernelsize)
         self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=lr)
         self.CEloss_criterion = CrossEntropyLoss2d(torch.Tensor([0, 1]).float()).to(device)
 

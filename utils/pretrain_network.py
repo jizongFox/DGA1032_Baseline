@@ -12,7 +12,7 @@ device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torc
 
 
 def val(val_dataloader, network):
-    network.eval()
+    # network.eval()
     f_dice_meter = AverageValueMeter()
     f_dice_meter.reset()
     with torch.no_grad():
@@ -25,7 +25,7 @@ def val(val_dataloader, network):
             # plt.imshow(predicted_mask.squeeze())
             # plt.colorbar()
             # plt.show()
-    network.train()
+    # network.train()
     print('val iou:  %.8f' % f_dice_meter.value()[0])
     return f_dice_meter.value()[0]
 

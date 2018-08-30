@@ -65,10 +65,10 @@ def run_pretrain(model_name,lamda,sigma,kernelsize):
     father_path = os.path.dirname(model_path)
     neural_net.load_state_dict(torch.load(model_path, map_location=map_location))
     neural_net.to(device)
-
+    # neural_net.eval()
     for i,(img,mask,_,_) in tqdm(enumerate(val_loader)):
-        if mask.sum()==0:
-            continue
+        # if mask.sum()==0:
+        #     continue
 
         proba = F.softmax(neural_net(img),1)[0,1]
 
@@ -81,6 +81,11 @@ def run_pretrain(model_name,lamda,sigma,kernelsize):
         [db,df] = dice_loss(seg,mask)
         db_meter_n.add(db)
         df_meter_n.add(df)
+    if not os.path.exists(father_path+'/semi_baseline_results'):
+        try:
+            os.mkdir(father_path+'/semi_baseline_results')
+        except Exception as e:
+            print(e)
 
     table= pd.DataFrame([db_meter_n.value()[0],df_meter_n.value()[0],db_meter_g.value()[0],df_meter_g.value()[0]]).T
     table.columns=['neural_b_dice','neural_f_dice','graphcut_b_dice','graphcut_f_dice']
