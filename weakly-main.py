@@ -91,8 +91,8 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
         try:
             save_image(train_grid,os.path.join('results',filename,'train_grid_%.2d_f_dice_%.3f.png'%(iteration,train_ious[1])))
             save_image(val_grid,os.path.join('results',filename,'val_grid_%.2d_f_dice_%.3f.png'%(iteration,val_ious[1])))
-        except:
-            pass
+        except Exception as e:
+            print(e)
 
         ious = np.array((train_ious, val_ious)).ravel().tolist()
         ious_tables.append(ious)
