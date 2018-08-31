@@ -20,7 +20,7 @@ from tqdm import tqdm
 import click
 
 filename = os.path.basename(__file__).split('.')[0]
-data_dir = '/Users/jizong/workspace/DGA1032_grid_search/dataset/ACDC-2D-All'
+data_dir = '../../dataset/ACDC-2D-All'
 
 batch_size =1
 batch_size_val =1
@@ -69,7 +69,7 @@ def run_graphcut_evaluation_for_weakly_supervised_learning(kernel_size,lamda,sig
     print('db:%.3f, df:%.3f, mean dice:%.3f'%(db_average,df_average,0.5*(db_average+df_average)))
     data_to_save = pd.DataFrame([db_average, df_average, 0.5 * (db_average + df_average)]).T
     data_to_save.columns=['db','df','mean']
-    data_to_save.to_csv(variable+'.csv')
+    data_to_save.to_csv('results/'+variable+'.csv')
 
 if __name__=="__main__":
     run_graphcut_evaluation_for_weakly_supervised_learning()

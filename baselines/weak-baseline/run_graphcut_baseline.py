@@ -20,7 +20,7 @@ for k in kernel_sizes:
 print(cmd_package.__len__())
 
 if __name__ =='__main__':
-    p =Pool(4)
+    p =Pool(8)
     p.map(os.system, cmd_package)
 
 

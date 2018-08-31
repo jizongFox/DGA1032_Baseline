@@ -1,7 +1,7 @@
 import os
 from multiprocessing import Pool
 
-modelnames = [x for x in os.listdir('/Users/jizong/workspace/DGA1032_grid_search/semi_pretrain_checkpoint') if x.find('.pth')>0]
+modelnames = [x for x in os.listdir('../../semi_pretrain_checkpoint') if x.find('.pth')>0]
 kernel_sizes =[5,7]
 lamdas = [0.01,  0.1, 1,10  ]
 sigmas = [ 0.01, 0.1, 0.2, 1]
