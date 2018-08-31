@@ -54,7 +54,6 @@ df_meter = AverageValueMeter()
 def run_graphcut_evaluation_for_weakly_supervised_learning(kernel_size,lamda,sigma,dilation_level):
     variable= "kernel_size,lamda,sigma,dilation_level"+str([kernel_size,lamda,sigma,dilation_level])
     variable=    variable.replace(' ','').replace(',','_').replace('[','_').replace(']','')
-    print(variable)
     for i, (img, full_mask, weak_mask, _) in tqdm(enumerate(train_loader)):
         if weak_mask.sum() <= 0 or full_mask.sum() <= 0:
             continue
