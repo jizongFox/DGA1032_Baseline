@@ -17,6 +17,8 @@ def val(val_dataloader, network):
     f_dice_meter.reset()
     with torch.no_grad():
         for i, (image, mask, _, _) in enumerate(val_dataloader):
+            if mask.sum()==0:
+                continue
             image, mask = image.to(device), mask.to(device)
             proba = F.softmax(network(image), dim=1)
             predicted_mask = proba.max(1)[1]

@@ -20,7 +20,7 @@ from tqdm import tqdm
 import click
 
 filename = os.path.basename(__file__).split('.')[0]
-data_dir = '/Users/jizong/workspace/DGA1032_grid_search/dataset/ACDC-2D-All'
+data_dir = '../../dataset/ACDC-2D-All'
 use_gpu = True
 device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torch.device('cpu')
 
@@ -53,7 +53,7 @@ db_meter_n = AverageValueMeter()
 df_meter_n = AverageValueMeter()
 ## pretrain the network on the labeled data
 @click.command()
-@click.option('--model_name', default='model_0.6217_split_0.030.pth')
+@click.option('--model_name', default='model_0.7785_split_0.030.pth')
 @click.option('--lamda', default=10.0, help='balance between unary and boundary terms')
 @click.option('--sigma', default=0.01, help='sigma in the boundary term of the graphcut')
 @click.option('--kernelsize', default=5, help='kernelsize of the graphcut')
@@ -61,18 +61,19 @@ def run_pretrain(model_name,lamda,sigma,kernelsize):
     variable_str = str([lamda,sigma,kernelsize]).replace(' ', '').replace(',', '_').replace("'", "").replace('[', '').replace(']', '')
     neural_net = Enet(2)
     map_location = lambda storage, loc: storage
-    model_path = '/Users/jizong/workspace/DGA1032_grid_search/semi_pretrain_checkpoint/'+model_name
+    model_path = '../../semi_pretrain_checkpoint/'+model_name
     father_path = os.path.dirname(model_path)
     neural_net.load_state_dict(torch.load(model_path, map_location=map_location))
     neural_net.to(device)
     # neural_net.eval()
     for i,(img,mask,_,_) in tqdm(enumerate(val_loader)):
-        # if mask.sum()==0:
-        #     continue
-
+        if mask.sum()==0:
+            continue
+        img,mask = img.to(device),mask.to(device)
         proba = F.softmax(neural_net(img),1)[0,1]
 
-        graphcut_output = graphcut_refinement(proba,img,5,10,0.01)
+        graphcut_output = graphcut_refinement(proba,img,kernelsize,lamda,sigma)
+        graphcut_output= graphcut_output.to(device)
         [db,df] = dice_loss(graphcut_output,mask)
         db_meter_g.add(db)
         df_meter_g.add(df)

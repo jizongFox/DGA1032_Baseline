@@ -75,8 +75,8 @@ def evaluate_iou(val_dataloader, network,save=False):
     with torch.no_grad():
         images =[]
         for i, (image, mask, weak_mask, pathname) in enumerate(val_dataloader):
-            # if mask.sum()==0 or weak_mask.sum()==0:
-            #     continue
+            if mask.sum()==0 or weak_mask.sum()==0:
+                continue
             image, mask,weak_mask = image.to(device), mask.to(device),weak_mask.to(device)
             proba = F.softmax(network(image), dim=1)
             predicted_mask = proba.max(1)[1]

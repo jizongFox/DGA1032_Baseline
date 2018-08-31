@@ -1,6 +1,7 @@
 # coding=utf8
 from __future__ import print_function, division
-
+import sys,os
+sys.path.insert(-1, os.getcwd())
 import os
 import random
 
