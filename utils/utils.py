@@ -94,7 +94,7 @@ def evaluate_iou(val_dataloader, network,save=False):
         return [[b_dice_meter.value()[0],f_dice_meter.value()[0]],None]
 
 def save_images(images, img,prediction, mask, weak_mask):
-    if len(images)>=20*4:
+    if len(images)>=30*4:
         return images
     segm = pred2segmentation(prediction)
     images.extend([img[0],weak_mask[0].float(),mask[0].float(),segm.float()])
