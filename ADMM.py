@@ -35,6 +35,18 @@ class ADMM_networks(object):
         self.kernelsize = kernelsize
         self.initial_kernel()
 
+    def learning_rate_decay(self,factor):
+        assert factor>0 and factor<1
+        lr = []
+        for param_group in self.optimiser.param_groups:
+            lr.append(param_group['lr'])
+        new_lr=[x*factor for x in lr]
+        print(new_lr)
+        for i, param_group in enumerate(self.optimiser.param_groups):
+            param_group['lr'] = new_lr[i]
+
+
+
     def initial_kernel(self):
         self.kernel = np.ones((self.kernelsize, self.kernelsize))
         self.kernel[int(self.kernel.shape[0] / 2), int(self.kernel.shape[1] / 2)] = 0

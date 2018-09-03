@@ -31,7 +31,7 @@ batch_size = 1
 batch_size_val = 1
 num_workers = 1
 lr = 0.001
-max_epoch = 100
+max_epoch = 300
 data_dir = 'dataset/ACDC-2D-All'
 
 color_transform = Colorize()
@@ -106,6 +106,9 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
         except Exception as e:
             print(e)
 
+        if iteration%20 ==0:
+            net.learning_rate_decay(0.9)
+
         for j, (img, full_mask, weak_mask, _) in tqdm(enumerate(train_loader)):
             if weak_mask.sum() <= 0 or full_mask.sum() <= 0:
                 continue
@@ -117,6 +120,7 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
                 # net.show_heatmap()
                 net.update_2()
             net.reset()
+
 
 
 if __name__ == "__main__":
