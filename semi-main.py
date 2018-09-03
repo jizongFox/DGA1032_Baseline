@@ -31,7 +31,7 @@ device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torc
 batch_size = 1
 batch_size_val = 1
 num_workers = 1
-lr = 0.01
+lr = 0.002
 max_epoch = 100
 data_dir = 'dataset/ACDC-2D-All'
 
@@ -68,7 +68,7 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
     ious_tables.append([baseline,inneriter, lamda, sigma, kernelsize, lowbound, highbound, saved_name])
 
     # Here we have to split the fully annotated dataset and unannotated dataset
-    split_ratio = 0.05
+    split_ratio = 0.03
     labeled_dataset, unlabeled_dataset=split_label_unlabel_dataset(train_set,split_ratio)
     labeled_dataLoader = DataLoader(labeled_dataset, batch_size=1, num_workers=num_workers, shuffle=True)
     unlabeled_dataLoader = DataLoader(unlabeled_dataset, batch_size=1, num_workers=num_workers, shuffle=True)
@@ -78,7 +78,7 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
     neural_net = Enet(2)
     map_location = lambda storage, loc: storage
     neural_net.load_state_dict(torch.load(
-        'semi_pretrain_checkpoint/model_0.7785_split_0.030.pth', map_location=map_location))
+        'semi_pretrain_checkpoint/model_0.8116_split_0.030.pth', map_location=map_location))
     neural_net.to(device)
     # neural_net.eval()
 
@@ -99,20 +99,20 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
     for iteration in tqdm(range(10000)):
         # choose randomly a batch of image from labeled dataset and unlabeled dataset.
         # Initialize the ADMM dummy variables for one-batch training
-        if (iteration ) % 200 == 0:
-            [unlabeled_ious,train_grid]= evaluate_iou(unlabeled_dataLoader, net.neural_net,save=True)
-            [val_ious,val_grid]= evaluate_iou(val_loader, net.neural_net,save=True)
-            save_image(train_grid,os.path.join('results',filename,'train_grid_%.2d_f_dice_%.3f.png'%(iteration,unlabeled_ious[1])))
-            save_image(val_grid,os.path.join('results',filename,'val_grid_%.2d_f_dice_%.3f.png'%(iteration,val_ious[1])))
-            ious = np.array((unlabeled_ious, val_ious)).ravel().tolist()
-            ious_tables.append(ious)
-            try:
-                if not os.path.exists(os.path.join('results',filename)):
-                    os.mkdir(os.path.join('results',filename))
-
-                pd.DataFrame(ious_tables).to_csv(os.path.join('results',filename,'%s.csv' % variable_str),header=None)
-            except Exception as e:
-                print(e)
+        # if (iteration ) % 200 == 0:
+        #     [unlabeled_ious,train_grid]= evaluate_iou(unlabeled_dataLoader, net.neural_net,save=True)
+        #     [val_ious,val_grid]= evaluate_iou(val_loader, net.neural_net,save=True)
+        #     save_image(train_grid,os.path.join('results',filename,'train_grid_%.2d_f_dice_%.3f.png'%(iteration,unlabeled_ious[1])))
+        #     save_image(val_grid,os.path.join('results',filename,'val_grid_%.2d_f_dice_%.3f.png'%(iteration,val_ious[1])))
+        #     ious = np.array((unlabeled_ious, val_ious)).ravel().tolist()
+        #     ious_tables.append(ious)
+        #     try:
+        #         if not os.path.exists(os.path.join('results',filename)):
+        #             os.mkdir(os.path.join('results',filename))
+        #
+        #         pd.DataFrame(ious_tables).to_csv(os.path.join('results',filename,'%s.csv' % variable_str),header=None)
+        #     except Exception as e:
+        #         print(e)
 
         (labeled_img, labeled_mask), (unlabeled_img, unlabeled_mask)=iter_image_pair(labeled_dataLoader,unlabeled_dataLoader)
 
@@ -124,10 +124,11 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, lowbound, highbound, sav
         unlabeled_img, unlabeled_mask = unlabeled_img.to(device), unlabeled_mask.to(device)
 
         for i in range(inneriter):
-            net.update((labeled_img, labeled_mask),
+            net.update_1((labeled_img, labeled_mask),
                        (unlabeled_img, unlabeled_mask))
             net.show_gamma()
             net.show_heatmap()
+            net.update_2()
             # net.show_u()
             # net.show_s()
         net.reset()

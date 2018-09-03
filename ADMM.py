@@ -43,6 +43,7 @@ class ADMM_networks(object):
         self.limage = limage
         self.lmask = lmask
         # self.neural_net.eval()
+        # with torch.no_grad():
         self.limage_output = self.neural_net(limage)
         # self.neural_net.train()
 
@@ -50,6 +51,7 @@ class ADMM_networks(object):
         self.umask = umask
         self.uimage = uimage
         # self.neural_net.eval()
+        # with torch.no_grad():
         self.uimage_output = self.neural_net(uimage)
         # self.neural_net.train()
 
@@ -90,7 +92,7 @@ class ADMM_networks(object):
                 -self.s + self.v).float().to(device)).norm(p=2) ** 2
             unlabled_loss /= list(self.uimage_output.reshape(-1).size())[0]
 
-            loss = CE_loss + unlabled_loss
+            loss = CE_loss+ unlabled_loss
 
             self.optimiser.zero_grad()
             loss.backward()
@@ -193,6 +195,20 @@ class ADMM_networks(object):
         self.update_theta()
         self.update_u()
         self.update_v()
+
+    def update_1(self, limage_pair, uimage_pair):
+        [limage, lmask], [uimage, umask] = limage_pair, uimage_pair
+        self.limage_forward(limage, lmask)
+        self.uimage_forward(uimage, umask)
+        self.update_s()
+        self.update_gamma()
+
+    def update_2(self):
+        self.update_theta()
+        self.update_u()
+        self.update_v()
+
+
 
     def show_labeled_pair(self):
         fig = plt.figure(1, figsize=(32, 32))
@@ -417,10 +433,11 @@ class ADMM_network_without_graphcut(ADMM_networks):
 
 class weakly_ADMM_network(ADMM_networks):
 
-    def __init__(self, neural_network, lr, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5):
+    def __init__(self, neural_network, lr, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5,dilation_level = 7):
         super().__init__(neural_network, lr,lowerbound, upperbound, lamda, sigma, kernelsize)
         self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=lr)
         self.CEloss_criterion = CrossEntropyLoss2d(torch.Tensor([0, 1]).float()).to(device)
+        self.dilation_level = dilation_level
 
     def update(self, image_pair, full_mask):
         [image, weak_mask] = image_pair
@@ -452,7 +469,7 @@ class weakly_ADMM_network(ADMM_networks):
         weak_mask = self.weak_mask.cpu().squeeze().numpy()
 
         kernel = np.ones((5, 5), np.uint8)
-        dilation = cv2.dilate(weak_mask.astype(np.float32), kernel, iterations=7)
+        dilation = cv2.dilate(weak_mask.astype(np.float32), kernel, iterations=self.dilation_level)
         unary_term_gamma_0 = np.zeros(unary_term_gamma_1.shape)
         unary_term_gamma_1[0][dilation != 1] = np.inf
         new_gamma = np.zeros(self.gamma.shape)
@@ -566,8 +583,8 @@ class weakly_ADMM_network(ADMM_networks):
 
 class weakly_ADMM_without_sizeConstraint(weakly_ADMM_network):
 
-    def __init__(self, neural_network,lr, lamda=1.0, sigma=0.02, kernelsize=5):
-        super().__init__(neural_network, lr,lowerbound=0, upperbound=0, lamda=lamda, sigma=sigma, kernelsize=kernelsize)
+    def __init__(self, neural_network,lr, lamda=1.0, sigma=0.02, kernelsize=5,dilation_level=7):
+        super().__init__(neural_network, lr,lowerbound=0, upperbound=0, lamda=lamda, sigma=sigma, kernelsize=kernelsize,dilation_level=dilation_level)
 
     def update_theta(self):
         self.neural_net.zero_grad()
@@ -595,6 +612,16 @@ class weakly_ADMM_without_sizeConstraint(weakly_ADMM_network):
         self.full_mask = full_mask
         self.image_forward(image, weak_mask)
         self.update_gamma()
+        self.update_theta()
+        self.update_u()
+
+    def update_1(self, image_pair, full_mask):
+        [image, weak_mask] = image_pair
+        self.full_mask = full_mask
+        self.image_forward(image, weak_mask)
+        self.update_gamma()
+
+    def update_2(self):
         self.update_theta()
         self.update_u()
 
