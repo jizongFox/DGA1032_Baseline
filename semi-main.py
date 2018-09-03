@@ -23,6 +23,8 @@ from utils.utils import Colorize, dice_loss, evaluate_iou,split_label_unlabel_da
 from tqdm import tqdm
 import click
 
+torch.set_num_threads(1)
+
 filename = os.path.basename(__file__).split('.')[0]
 
 use_gpu = True

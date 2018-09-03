@@ -20,6 +20,7 @@ from utils.utils import Colorize, evaluate_iou
 
 from tqdm import tqdm
 import click
+torch.set_num_threads(1)
 
 filename = os.path.basename(__file__).split('.')[0]
 writer = SummaryWriter('log/weakly')
