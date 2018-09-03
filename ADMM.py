@@ -650,7 +650,7 @@ class weakly_ADMM_without_sizeConstraint(weakly_ADMM_network):
 
 class weakly_ADMM_without_gc(weakly_ADMM_network):
 
-    def __init__(self, lr,neural_network, lowerbound, upperbound):
+    def __init__(self,neural_network,lr ,lowerbound, upperbound):
         super().__init__(neural_network,lr, lowerbound, upperbound, lamda=1, sigma=1, kernelsize=5)
 
     def update(self, image_pair, full_mask):
