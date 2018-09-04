@@ -101,7 +101,6 @@ def save_images(images, img, mask, prob, segm):
     images.extend([img[0].float(), mask[0].float(), prob.float(), segm.float()])
     return images
 
-
 @click.command()
 @click.option('--lr', default=5e-4, help='learning rate')
 @click.option('--loss_function', default='CE', type=click.Choice(['CE', 'MSE']))

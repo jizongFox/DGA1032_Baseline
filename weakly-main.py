@@ -61,24 +61,25 @@ val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_work
 @click.option('--dilation_level', default=7, help='dilation_level of the graphcut')
 @click.option('--lowbound', default=93, help='lowbound')
 @click.option('--highbound', default=1728, help='highbound')
-@click.option('--saved_name', default='default_iou', help='default_save_name')
-def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, saved_name):
+@click.option('--assign_size_to_each', default=True, help='default_save_name')
+@click.option('--eps',default=0.05,help='default eps for testing')
+def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, assign_size_to_each,eps):
     ious_tables = []
-    variable_str = str([baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, saved_name]).replace(' ',
+    variable_str = str([baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, assign_size_to_each,eps]).replace(' ',
                                                                                                                  '').replace(
         ',', '_').replace("'", "").replace('[', '').replace(']', '')
-    ious_tables.append([baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, saved_name])
+    ious_tables.append([baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, assign_size_to_each,eps])
 
     ##==================================================================================================================
     neural_net = Enet(2)
     neural_net.to(device)
 
     if baseline == 'ADMM_weak':
-        net = weakly_ADMM_network(neural_net, lr, lowerbound=lowbound, upperbound=highbound, sigma=sigma, lamda=lamda,dilation_level=dilation_level)
+        net = weakly_ADMM_network(neural_net, lr, lowerbound=lowbound, upperbound=highbound, sigma=sigma, lamda=lamda,dilation_level=dilation_level,assign_size_to_each=assign_size_to_each,eps=eps)
     elif baseline == 'ADMM_weak_gc':
         net = weakly_ADMM_without_sizeConstraint(neural_net, lr, lamda=lamda, sigma=sigma, kernelsize=kernelsize,dilation_level=dilation_level)
     elif baseline == 'ADMM_weak_size':
-        net = weakly_ADMM_without_gc(neural_net, lr, lowerbound=lowbound, upperbound=highbound)
+        net = weakly_ADMM_without_gc(neural_net, lr, lowerbound=lowbound, upperbound=highbound,assign_size_to_each=assign_size_to_each,eps=eps)
     else:
         raise ValueError
 
@@ -116,8 +117,9 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
 
             for i in range(inneriter):
                 net.update_1((img, weak_mask), full_mask)
-                # net.show_gamma()
-                # net.show_heatmap()
+                net.show_gamma()
+                net.show_heatmap()
+                # print(net.upbound,net.lowbound)
                 net.update_2()
             net.reset()
 

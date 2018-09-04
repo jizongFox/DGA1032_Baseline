@@ -20,7 +20,7 @@ class ADMM_networks(object):
     gamma and s: numpy of shape b h w
     u,v: numpy of shape b h w
     '''
-    def __init__(self, neural_network,lr, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5):
+    def __init__(self, neural_network,lr, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5, assign_size_to_each=False,eps=0.1):
         super(ADMM_networks, self).__init__()
         self.lowbound = lowerbound
         self.upbound = upperbound
@@ -33,6 +33,8 @@ class ADMM_networks(object):
         self.lamda = lamda
         self.sigma = sigma
         self.kernelsize = kernelsize
+        self.assign_size_to_each= assign_size_to_each
+        self.eps=eps
         self.initial_kernel()
 
     def learning_rate_decay(self,factor):
@@ -70,6 +72,11 @@ class ADMM_networks(object):
         if self.gamma is None:
             self.initialize_dummy_variables(self.uimage_output)
 
+            if self.assign_size_to_each:
+                uimage_size = umask.sum()
+                self.lowbound = uimage_size*(1-self.eps)
+                self.upbound = uimage_size*(1+self.eps)
+
     def heatmap2segmentation(self, heatmap):
         return heatmap.max(1)[1]
 
@@ -78,6 +85,9 @@ class ADMM_networks(object):
         self.s = self.gamma  # b w h
         self.u = np.zeros(list(self.gamma.shape))  # b w h
         self.v = np.zeros(self.u.shape)
+
+
+
 
     def reset(self):
         self.limage = None
@@ -397,8 +407,8 @@ class ADMM_network_without_sizeConstraint(ADMM_networks):
         plt.pause(0.01)
 
 class ADMM_network_without_graphcut(ADMM_networks):
-    def __init__(self, neural_network, lr,lowerbound=50, upperbound=1723):
-        super().__init__(neural_network, lr,lowerbound, upperbound, lamda=0, sigma=0, kernelsize=5)
+    def __init__(self, neural_network, lr,lowerbound=50, upperbound=1723,assign_size_to_each=False,eps=0.1):
+        super().__init__(neural_network, lr,lowerbound, upperbound, lamda=0, sigma=0, kernelsize=5,assign_size_to_each=assign_size_to_each,eps=eps)
 
     def update_theta(self):
         self.neural_net.zero_grad()
@@ -445,8 +455,8 @@ class ADMM_network_without_graphcut(ADMM_networks):
 
 class weakly_ADMM_network(ADMM_networks):
 
-    def __init__(self, neural_network, lr, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5,dilation_level = 7):
-        super().__init__(neural_network, lr,lowerbound, upperbound, lamda, sigma, kernelsize)
+    def __init__(self, neural_network, lr, lowerbound, upperbound, lamda=1, sigma=0.02, kernelsize=5,dilation_level = 7,assign_size_to_each=False,eps=0.1):
+        super().__init__(neural_network, lr,lowerbound, upperbound, lamda, sigma, kernelsize,assign_size_to_each,eps)
         self.optimiser = torch.optim.Adam(self.neural_net.parameters(), lr=lr)
         self.CEloss_criterion = CrossEntropyLoss2d(torch.Tensor([0, 1]).float()).to(device)
         self.dilation_level = dilation_level
@@ -454,6 +464,10 @@ class weakly_ADMM_network(ADMM_networks):
     def update(self, image_pair, full_mask):
         [image, weak_mask] = image_pair
         self.full_mask = full_mask
+        if self.assign_size_to_each:
+            mask_size = full_mask.sum()
+            self.lowbound = mask_size * (1 - self.eps)
+            self.upbound = mask_size * (1 + self.eps)
         self.image_forward(image, weak_mask)
         self.update_gamma()
         self.update_s()
@@ -463,6 +477,11 @@ class weakly_ADMM_network(ADMM_networks):
 
     def update_1(self, image_pair, full_mask):
         [image, weak_mask] = image_pair
+        if self.assign_size_to_each:
+            mask_size = full_mask.sum()
+            self.lowbound = int(float(mask_size)*(1-self.eps))
+            self.upbound = int(float(mask_size)*(1+self.eps))
+
         self.full_mask = full_mask
         self.image_forward(image, weak_mask)
         self.update_gamma()
@@ -504,6 +523,7 @@ class weakly_ADMM_network(ADMM_networks):
         self.image_output = self.neural_net(image)
         if self.gamma is None:
             self.initialize_dummy_variables(self.image_output)
+
 
     def reset(self):
         self.image = None
@@ -662,8 +682,8 @@ class weakly_ADMM_without_sizeConstraint(weakly_ADMM_network):
 
 class weakly_ADMM_without_gc(weakly_ADMM_network):
 
-    def __init__(self,neural_network,lr ,lowerbound, upperbound):
-        super().__init__(neural_network,lr, lowerbound, upperbound, lamda=1, sigma=1, kernelsize=5)
+    def __init__(self,neural_network,lr ,lowerbound, upperbound,assign_size_to_each=False,eps=0.1):
+        super().__init__(neural_network,lr, lowerbound, upperbound, lamda=1, sigma=1, kernelsize=5,assign_size_to_each=assign_size_to_each,eps=eps)
 
     def update(self, image_pair, full_mask):
         [image, weak_mask] = image_pair
