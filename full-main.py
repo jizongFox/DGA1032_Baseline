@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from utils.criterion import CrossEntropyLoss2d
+from utils.criterion import CrossEntropyLoss2d,MSE_2D
 import utils.medicalDataLoader as medicalDataLoader
 from utils.enet import Enet
 from tqdm import tqdm
@@ -103,14 +103,15 @@ def save_images(images, img, mask, prob, segm):
 
 
 @click.command()
-@click.option('--lr', default=5e-3, help='learning rate')
+@click.option('--lr', default=5e-4, help='learning rate')
 @click.option('--loss_function', default='CE', type=click.Choice(['CE', 'MSE']))
 def main(lr, loss_function):
-    writer = SummaryWriter('log/' + str(lr) + '_' + str(loss_function))
+    from datetime import datetime
+    writer = SummaryWriter('log/' + str(lr) + '_' + str(loss_function)+'_'+ datetime.now().strftime('%b%d_%H-%M-%S'))
 
     neural_net = Enet(2)
     neural_net.to(device)
-    criterion = CrossEntropyLoss2d(weight=torch.Tensor([0.5, 2])).to(device)
+    criterion = CrossEntropyLoss2d(weight=torch.Tensor([0.5, 2])).to(device) if loss_function=='CE' else MSE_2D()
     optimizer = torch.optim.Adam(params=neural_net.parameters(), lr=lr, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100, 150, 200, 250], gamma=0.25)
     highest_iou = -1
@@ -137,7 +138,7 @@ def main(lr, loss_function):
         train_iou_tables.append(train_ious)
         [val_ious, val_grid] = val(val_loader, neural_net, save=True)
         writer.add_scalars('data/test_dice', {'bdice': val_ious[0], 'fdice': val_ious[1]}, global_step=epoch)
-        writer.add_image('val_grid', val_grid)
+        writer.add_image('val_grid', val_grid,epoch)
         val_ious.insert(0, _lr)
         val_iou_tables.append(val_ious)
         print(
