@@ -145,9 +145,9 @@ def main(lr, loss_function):
                 epoch, train_ious[2], val_ious[2], _lr))
         try:
             pd.DataFrame(train_iou_tables, columns=['learning rate', 'background', 'foregound']).to_csv(
-                'results/%s/train_lr_%f_%f.csv' % (filename, lr, loss_function))
+                'results/%s/train_lr_%f_%s.csv' % (filename, lr, loss_function))
             pd.DataFrame(val_iou_tables, columns=['learning rate', 'background', 'foregound']).to_csv(
-                'results/%s/val_lr_%f_%f.csv' % (filename, lr, loss_function))
+                'results/%s/val_lr_%f_%s.csv' % (filename, lr, loss_function))
 
         except Exception as e:
             print(e)
