@@ -1,12 +1,9 @@
 # coding=utf8
 import os
-
 import sys
-
-sys.path.insert(-1, os.getcwd())
 import warnings
 
-warnings.filterwarnings('ignore')
+sys.path.insert(-1, os.getcwd())
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -18,22 +15,29 @@ from utils.criterion import CrossEntropyLoss2d
 import utils.medicalDataLoader as medicalDataLoader
 from utils.enet import Enet
 from tqdm import tqdm
-from utils.visualize import Dashboard
 from utils.utils import Colorize, dice_loss
 from torchnet.meter import AverageValueMeter
+from tensorboardX import SummaryWriter
+from torchvision.utils import save_image, make_grid
 import click
 
+torch.set_num_threads(2)
+warnings.filterwarnings('ignore')
 use_gpu = True
 device = torch.device('cuda') if torch.cuda.is_available() and use_gpu else torch.device('cpu')
 cuda_device = "0"
 os.environ["CUDA_VISIBLE_DEVICES"] = cuda_device
 
-batch_size = 1
-batch_size_val = 1
-num_workers = 1
-max_epoch = 100
-data_dir = 'dataset/ACDC-2D-All'
+filename = os.path.basename(__file__).split('.')[0]
 
+if not os.path.exists(os.path.join('results', filename)):
+    os.mkdir(os.path.join('results', filename))
+
+batch_size = 2
+batch_size_val = 1
+num_workers = 2
+max_epoch = 400
+data_dir = 'dataset/ACDC-2D-All'
 
 color_transform = Colorize()
 transform = transforms.Compose([
@@ -53,23 +57,24 @@ val_set = medicalDataLoader.MedicalImageDataset('val', data_dir, transform=trans
                                                 equalize=False)
 
 val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_workers, shuffle=True)
+
 val_iou_tables = []
 train_iou_tables = []
 
-train_broad = Dashboard(env='training', server='http://localhost')
-val_broad = Dashboard(env='eval', server='http://localhost')
 
-
-def val(val_dataloader, network, board=False, enable_skip=False):
-    network.eval()
+def val(val_dataloader, network, save=False):
+    # network.eval()
     dice_meter_b = AverageValueMeter()
     dice_meter_f = AverageValueMeter()
 
     dice_meter_b.reset()
     dice_meter_f.reset()
+
+    images = []
     with torch.no_grad():
         for i, (image, mask, _, _) in enumerate(val_dataloader):
-            if enable_skip and mask.sum() == 0: continue;
+            if mask.sum() == 0:
+                continue
             image, mask = image.to(device), mask.to(device)
 
             proba = F.softmax(network(image), dim=1)
@@ -78,23 +83,36 @@ def val(val_dataloader, network, board=False, enable_skip=False):
 
             dice_meter_f.add(iou[1])
             dice_meter_b.add(iou[0])
-            if board and i % 10 == 0:
-                board.image(image[0], 'medical image')
-                board.image(color_transform(mask[0]), 'weak_mask')
-                board.image(color_transform(predicted_mask[0]), 'prediction')
 
-    network.train()
-    return [dice_meter_b.value()[0], dice_meter_f.value()[0]]
+            if save:
+                images = save_images(images, image, mask, proba[:, 1], predicted_mask)
+    if save:
+        grid = make_grid(images, nrow=4)
+        return [[dice_meter_b.value()[0], dice_meter_f.value()[0]], grid]
+    else:
+        return [[dice_meter_b.value()[0], dice_meter_f.value()[0]], None]
+
+    # network.train()
+
+
+def save_images(images, img, mask, prob, segm):
+    if len(images) >= 30 * 4:
+        return images
+    images.extend([img[0].float(), mask[0].float(), prob.float(), segm.float()])
+    return images
 
 
 @click.command()
 @click.option('--lr', default=5e-3, help='learning rate')
-def main(lr):
+@click.option('--loss_function', default='CE', type=click.Choice(['CE', 'MSE']))
+def main(lr, loss_function):
+    writer = SummaryWriter('log/' + str(lr) + '_' + str(loss_function))
+
     neural_net = Enet(2)
     neural_net.to(device)
     criterion = CrossEntropyLoss2d(weight=torch.Tensor([0.5, 2])).to(device)
     optimizer = torch.optim.Adam(params=neural_net.parameters(), lr=lr, weight_decay=1e-5)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 60, 80], gamma=0.25)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100, 150, 200, 250], gamma=0.25)
     highest_iou = -1
 
     plt.ion()
@@ -110,14 +128,16 @@ def main(lr):
             loss = criterion(output, full_mask.squeeze(1))
             loss.backward()
             optimizer.step()
-            prob = F.softmax(output,1)[:,1]
-            print(prob.max().item())
 
         ## evaluate the model:
-        train_ious = val(train_loader, neural_net, enable_skip=True, board=train_broad)
+        [train_ious, train_grid] = val(train_loader, neural_net, save=True)
+        writer.add_scalars('data/train_dice', {'bdice': train_ious[0], 'fdice': train_ious[1]}, global_step=epoch)
+        writer.add_image('train_grid', train_grid, epoch)
         train_ious.insert(0, _lr)
         train_iou_tables.append(train_ious)
-        val_ious = val(val_loader, neural_net, enable_skip=True, board=val_broad)
+        [val_ious, val_grid] = val(val_loader, neural_net, save=True)
+        writer.add_scalars('data/test_dice', {'bdice': val_ious[0], 'fdice': val_ious[1]}, global_step=epoch)
+        writer.add_image('val_grid', val_grid)
         val_ious.insert(0, _lr)
         val_iou_tables.append(val_ious)
         print(
@@ -125,9 +145,9 @@ def main(lr):
                 epoch, train_ious[2], val_ious[2], _lr))
         try:
             pd.DataFrame(train_iou_tables, columns=['learning rate', 'background', 'foregound']).to_csv(
-                'results/train_lr_%f.csv' % lr)
+                'results/%s/train_lr_%f_%f.csv' % (filename, lr, loss_function))
             pd.DataFrame(val_iou_tables, columns=['learning rate', 'background', 'foregound']).to_csv(
-                'results/val_lr_%f.csv' % lr)
+                'results/%s/val_lr_%f_%f.csv' % (filename, lr, loss_function))
 
         except Exception as e:
             print(e)
@@ -135,7 +155,13 @@ def main(lr):
         if val_ious[2] > highest_iou:
             print('The highest val fiou is %f' % val_ious[2])
             highest_iou = val_ious[2]
-            torch.save(neural_net.state_dict(), 'checkpoint/pretrained_%.5f.pth' % val_ious[2])
+            try:
+                torch.save(neural_net.state_dict(),
+                           'full_checkpoint/pretrained_%.5f_%s.pth' % (val_ious[2], loss_function))
+            except:
+                os.mkdir('full_checkpoint')
+                torch.save(neural_net.state_dict(),
+                           'full_checkpoint/pretrained_%.5f_%s.pth' % (val_ious[2], loss_function))
 
 
 if __name__ == "__main__":
