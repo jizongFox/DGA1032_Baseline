@@ -23,9 +23,6 @@ class MSE_2D(nn.Module):
         assert prob.shape == target.shape
         return self.loss(prob,target.float())
 
-
-
-
 if __name__=="__main__":
     output = torch.rand(*(4,2,256,256))
     target = torch.randint(0,2,size=(4,256,256)).long()
