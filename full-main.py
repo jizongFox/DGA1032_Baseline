@@ -33,9 +33,9 @@ filename = os.path.basename(__file__).split('.')[0]
 if not os.path.exists(os.path.join('results', filename)):
     os.mkdir(os.path.join('results', filename))
 
-batch_size = 2
+batch_size = 1
 batch_size_val = 1
-num_workers = 2
+num_workers = 1
 max_epoch = 400
 data_dir = 'dataset/ACDC-2D-All'
 
