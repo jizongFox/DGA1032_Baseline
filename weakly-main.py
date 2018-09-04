@@ -31,7 +31,7 @@ batch_size = 1
 batch_size_val = 1
 num_workers = 1
 lr = 0.001
-max_epoch = 300
+max_epoch = 150
 data_dir = 'dataset/ACDC-2D-All'
 
 color_transform = Colorize()
@@ -91,11 +91,11 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
         writer.add_scalar('data/train_f_dice', train_ious[1], iteration)
         writer.add_scalar('data/val_f_dice', val_ious[1], iteration)
 
-        try:
-            save_image(train_grid,os.path.join('results',filename,'%strain_grid_%.2d_f_dice_%.3f.png'%(variable_str,iteration,train_ious[1])))
-            save_image(val_grid,os.path.join('results',filename,'%sval_grid_%.2d_f_dice_%.3f.png'%(variable_str,iteration,val_ious[1])))
-        except Exception as e:
-            print(e)
+        # try:
+        #     save_image(train_grid,os.path.join('results',filename,'%strain_grid_%.2d_f_dice_%.3f.png'%(variable_str,iteration,train_ious[1])))
+        #     save_image(val_grid,os.path.join('results',filename,'%sval_grid_%.2d_f_dice_%.3f.png'%(variable_str,iteration,val_ious[1])))
+        # except Exception as e:
+        #     print(e)
 
         ious = np.array((train_ious, val_ious)).ravel().tolist()
         ious_tables.append(ious)
@@ -117,8 +117,8 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
 
             for i in range(inneriter):
                 net.update_1((img, weak_mask), full_mask)
-                net.show_gamma()
-                net.show_heatmap()
+                # net.show_gamma()
+                # net.show_heatmap()
                 # print(net.upbound,net.lowbound)
                 net.update_2()
             net.reset()
