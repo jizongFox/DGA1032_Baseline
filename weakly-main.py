@@ -31,7 +31,7 @@ batch_size = 1
 batch_size_val = 1
 num_workers = 1
 lr = 0.001
-max_epoch = 50
+max_epoch = 200
 data_dir = 'dataset/ACDC-2D-All'
 
 color_transform = Colorize()
@@ -86,8 +86,8 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
     plt.ion()
     for iteration in range(max_epoch):
 
-        [train_ious,train_grid] = evaluate_iou(train_loader, net.neural_net,save=True)
-        [val_ious,val_grid] = evaluate_iou(val_loader, net.neural_net,save=True)
+        [train_ious,train_grid] = evaluate_iou(train_loader, net.neural_net,save=False)
+        [val_ious,val_grid] = evaluate_iou(val_loader, net.neural_net,save=False)
         writer.add_scalar('data/train_f_dice', train_ious[1], iteration)
         writer.add_scalar('data/val_f_dice', val_ious[1], iteration)
 
@@ -107,7 +107,7 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
         except Exception as e:
             print(e)
 
-        if iteration%10 ==0:
+        if iteration%20 ==0:
             net.learning_rate_decay(0.9)
 
         for j, (img, full_mask, weak_mask, _) in tqdm(enumerate(train_loader)):
