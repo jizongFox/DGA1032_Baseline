@@ -85,16 +85,16 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
     plt.ion()
     for iteration in range(max_epoch):
 
-        [train_ious,train_grid] = evaluate_iou(train_loader, net.neural_net,save=True)
-        [val_ious,val_grid] = evaluate_iou(val_loader, net.neural_net,save=True)
+        [train_ious,train_grid] = evaluate_iou(train_loader, net.neural_net,save=False)
+        [val_ious,val_grid] = evaluate_iou(val_loader, net.neural_net,save=False)
         writer.add_scalar('data/train_f_dice', train_ious[1], iteration)
         writer.add_scalar('data/val_f_dice', val_ious[1], iteration)
 
-        try:
-            save_image(train_grid,os.path.join('results',filename,'%strain_grid_%.2d_f_dice_%.3f.png'%(variable_str,iteration,train_ious[1])))
-            save_image(val_grid,os.path.join('results',filename,'%sval_grid_%.2d_f_dice_%.3f.png'%(variable_str,iteration,val_ious[1])))
-        except Exception as e:
-            print(e)
+        # try:
+        #     save_image(train_grid,os.path.join('results',filename,'%strain_grid_%.2d_f_dice_%.3f.png'%(variable_str,iteration,train_ious[1])))
+        #     save_image(val_grid,os.path.join('results',filename,'%sval_grid_%.2d_f_dice_%.3f.png'%(variable_str,iteration,val_ious[1])))
+        # except Exception as e:
+        #     print(e)
 
         ious = np.array((train_ious, val_ious)).ravel().tolist()
         ious_tables.append(ious)
