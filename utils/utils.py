@@ -67,9 +67,8 @@ def dice_loss(input, target):
 
     return [background_iou, foreground_iou]
 
-
 def evaluate_iou(val_dataloader, network,save=False):
-    # network.eval()
+    network.eval()
     b_dice_meter = AverageValueMeter()
     f_dice_meter = AverageValueMeter()
     with torch.no_grad():
@@ -86,7 +85,7 @@ def evaluate_iou(val_dataloader, network,save=False):
             if save:
                 images= save_images(images, image,proba, mask, weak_mask)
 
-    # network.train()
+    network.train()
     if save:
         grid = make_grid(images,nrow=4)
         return [[b_dice_meter.value()[0],f_dice_meter.value()[0]],grid]

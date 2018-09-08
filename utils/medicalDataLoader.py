@@ -121,7 +121,7 @@ class MedicalImageDataset(Dataset):
             img = img.rotate(angle)
             mask = mask.rotate(angle)
             weak_mask = weak_mask.rotate(angle)
-
+        '''
         if random.random() > 0.2:
             (w, h) = img.size
             (w_, h_) = mask.size
@@ -136,7 +136,7 @@ class MedicalImageDataset(Dataset):
             img = img.crop((x_pos, y_pos, x_pos + W, y_pos + H))
             mask = mask.crop((x_pos, y_pos, x_pos + W, y_pos + H))
             weak_mask = weak_mask.crop((x_pos, y_pos, x_pos + W, y_pos + H))
-
+        '''
         return img, mask, weak_mask
 
     def __getitem__(self, index):
