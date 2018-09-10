@@ -43,9 +43,10 @@ mask_transform = transforms.Compose([
     transforms.Resize((200, 200)),
     transforms.ToTensor()
 ])
+data_aug = False
 
 train_set = medicalDataLoader.MedicalImageDataset('train', data_dir, transform=transform, mask_transform=mask_transform,
-                                                  augment=True, equalize=False)
+                                                  augment=data_aug, equalize=False)
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
 val_set = medicalDataLoader.MedicalImageDataset('val', data_dir, transform=transform, mask_transform=mask_transform,
                                                 equalize=False)
@@ -103,12 +104,12 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
             if not os.path.exists(os.path.join('results', filename)):
                 os.mkdir(os.path.join('results', filename))
 
-            pd.DataFrame(ious_tables).to_csv(os.path.join('results', filename, '%s.csv' % variable_str), header=None)
+            pd.DataFrame(ious_tables).to_csv(os.path.join('results', filename, '%s_dataaug_%s.csv' %(variable_str,data_aug)), header=None)
         except Exception as e:
             print(e)
 
         if iteration%20 ==0:
-            net.learning_rate_decay(0.9)
+            net.learning_rate_decay(0.95)
 
         for j, (img, full_mask, weak_mask, _) in tqdm(enumerate(train_loader)):
             if weak_mask.sum() <= 0 or full_mask.sum() <= 0:

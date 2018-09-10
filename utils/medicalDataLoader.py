@@ -122,20 +122,20 @@ class MedicalImageDataset(Dataset):
             mask = mask.rotate(angle)
             weak_mask = weak_mask.rotate(angle)
 
-        if random.random() > 0.2:
-            (w, h) = img.size
-            (w_, h_) = mask.size
-            assert (w==w_ and h==h_),'The size should be the same.'
-            crop = random.uniform(0.75, 0.95)
-            W = int(crop * w)
-            H = int(crop * h)
-            start_x = w - W
-            start_y = h - H
-            x_pos = int(random.uniform(0, start_x))
-            y_pos = int(random.uniform(0, start_y))
-            img = img.crop((x_pos, y_pos, x_pos + W, y_pos + H))
-            mask = mask.crop((x_pos, y_pos, x_pos + W, y_pos + H))
-            weak_mask = weak_mask.crop((x_pos, y_pos, x_pos + W, y_pos + H))
+        # if random.random() > 0.2:
+        #     (w, h) = img.size
+        #     (w_, h_) = mask.size
+        #     assert (w==w_ and h==h_),'The size should be the same.'
+        #     crop = random.uniform(0.75, 0.95)
+        #     W = int(crop * w)
+        #     H = int(crop * h)
+        #     start_x = w - W
+        #     start_y = h - H
+        #     x_pos = int(random.uniform(0, start_x))
+        #     y_pos = int(random.uniform(0, start_y))
+        #     img = img.crop((x_pos, y_pos, x_pos + W, y_pos + H))
+        #     mask = mask.crop((x_pos, y_pos, x_pos + W, y_pos + H))
+        #     weak_mask = weak_mask.crop((x_pos, y_pos, x_pos + W, y_pos + H))
 
         return img, mask, weak_mask
 
@@ -155,10 +155,10 @@ class MedicalImageDataset(Dataset):
         if self.transform:
             img = self.transform(img)
             mask = self.mask_transform(mask)
-            mask = (mask >=0.8).long()
+            # mask = (mask >=0.8).long()
             # mask = self.mask_pixelvalue2OneHot(mask)
             mask_weak = self.mask_transform(mask_weak)
-            mask_weak = (mask_weak>=0.8).long()
+            # mask_weak = (mask_weak>=0.8).long()
 
         return [img, mask, mask_weak, img_path]
 
