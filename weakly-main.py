@@ -1,9 +1,10 @@
 # coding=utf8
 import os
 import sys
-from torchvision.utils import save_image,make_grid
+from torchvision.utils import save_image, make_grid
 import pandas as pd
 from tensorboardX import SummaryWriter
+
 sys.path.insert(-1, os.getcwd())
 import warnings
 
@@ -17,9 +18,9 @@ import utils.medicalDataLoader as medicalDataLoader
 from ADMM import weakly_ADMM_network, weakly_ADMM_without_sizeConstraint, weakly_ADMM_without_gc
 from utils.enet import Enet
 from utils.utils import Colorize, evaluate_iou
-
+import argparse
 from tqdm import tqdm
-import click
+
 torch.set_num_threads(1)
 
 filename = os.path.basename(__file__).split('.')[0]
@@ -53,42 +54,66 @@ val_set = medicalDataLoader.MedicalImageDataset('val', data_dir, transform=trans
 val_loader = DataLoader(val_set, batch_size=batch_size_val, num_workers=num_workers, shuffle=True)
 
 
-@click.command()
-@click.option('--baseline', default='ADMM_weak', type=click.Choice(['ADMM_weak', 'ADMM_weak_gc', 'ADMM_weak_size']))
-@click.option('--inneriter', default=1, help='iterative time in an inner admm loop')
-@click.option('--lamda', default=1.0, help='balance between unary and boundary terms')
-@click.option('--sigma', default=0.01, help='sigma in the boundary term of the graphcut')
-@click.option('--kernelsize', default=7, help='kernelsize of the graphcut')
-@click.option('--dilation_level', default=7, help='dilation_level of the graphcut')
-@click.option('--lowbound', default=93, help='lowbound')
-@click.option('--highbound', default=1728, help='highbound')
-@click.option('--assign_size_to_each', default=True, help='default_save_name')
-@click.option('--eps',default=0.05,help='default eps for testing')
-def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, assign_size_to_each,eps):
+def build_parser():
+    parser = argparse.ArgumentParser(description='replace of click')
+    parser.add_argument('--baseline', default='ADMM_weak')
+    parser.add_argument('--inneriter', type=int, default=20, help='iterative time in an inner admm loop')
+    parser.add_argument('--lamda', default=1.0, type=float, help='balance between unary and boundary terms')
+    parser.add_argument('--sigma', default=0.01, type=float, help='sigma in the boundary term of the graphcut')
+    parser.add_argument('--kernelsize', default=7, type=int, help='kernelsize of the graphcut')
+    parser.add_argument('--dilation_level', default=7, type=int, help='dilation_level of the graphcut')
+    parser.add_argument('--lowbound', default=93, type=int, help='lowbound')
+    parser.add_argument('--highbound', default=1728, type=int, help='highbound')
+    parser.add_argument('--assign_size_to_each', default=True, type=bool, help='default_save_name')
+    parser.add_argument('--eps', default=0.05, type=float, help='default eps for testing')
+
+    args = parser.parse_args()
+    return args
+
+
+# @click.command()
+# @click.option('--baseline', default='ADMM_weak', type=click.Choice(['ADMM_weak', 'ADMM_weak_gc', 'ADMM_weak_size']))
+# @click.option('--inneriter', default=20, help='iterative time in an inner admm loop')
+# @click.option('--lamda', default=1.0, help='balance between unary and boundary terms')
+# @click.option('--sigma', default=0.01, help='sigma in the boundary term of the graphcut')
+# @click.option('--kernelsize', default=7, help='kernelsize of the graphcut')
+# @click.option('--dilation_level', default=7, help='dilation_level of the graphcut')
+# @click.option('--lowbound', default=93, help='lowbound')
+# @click.option('--highbound', default=1728, help='highbound')
+# @click.option('--assign_size_to_each', default=True, help='default_save_name')
+# @click.option('--eps', default=0.05, help='default eps for testing')
+def main(args):
+    baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, assign_size_to_each, eps = args.baseline, args.inneriter, args.lamda, args.sigma, args.kernelsize, args.dilation_level, args.lowbound, args.highbound, args.assign_size_to_each, args.eps
     ious_tables = []
-    variable_str = str([baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, assign_size_to_each,eps]).replace(' ',
-                                                                                                                 '').replace(
+    variable_str = str(
+        [baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, assign_size_to_each,
+         eps]).replace(' ',
+                       '').replace(
         ',', '_').replace("'", "").replace('[', '').replace(']', '')
-    ious_tables.append([baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, assign_size_to_each,eps])
+    ious_tables.append(
+        [baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound, highbound, assign_size_to_each, eps])
 
     ##==================================================================================================================
     neural_net = Enet(2)
     neural_net.to(device)
 
     if baseline == 'ADMM_weak':
-        net = weakly_ADMM_network(neural_net, lr, lowerbound=lowbound, upperbound=highbound, sigma=sigma, lamda=lamda,dilation_level=dilation_level,assign_size_to_each=assign_size_to_each,eps=eps)
+        net = weakly_ADMM_network(neural_net, lr, lowerbound=lowbound, upperbound=highbound, sigma=sigma, lamda=lamda,
+                                  dilation_level=dilation_level, assign_size_to_each=assign_size_to_each, eps=eps)
     elif baseline == 'ADMM_weak_gc':
-        net = weakly_ADMM_without_sizeConstraint(neural_net, lr, lamda=lamda, sigma=sigma, kernelsize=kernelsize,dilation_level=dilation_level)
+        net = weakly_ADMM_without_sizeConstraint(neural_net, lr, lamda=lamda, sigma=sigma, kernelsize=kernelsize,
+                                                 dilation_level=dilation_level)
     elif baseline == 'ADMM_weak_size':
-        net = weakly_ADMM_without_gc(neural_net, lr, lowerbound=lowbound, upperbound=highbound,assign_size_to_each=assign_size_to_each,eps=eps)
+        net = weakly_ADMM_without_gc(neural_net, lr, lowerbound=lowbound, upperbound=highbound,
+                                     assign_size_to_each=assign_size_to_each, eps=eps)
     else:
         raise ValueError
 
     plt.ion()
     for iteration in range(max_epoch):
 
-        [train_ious,train_grid] = evaluate_iou(train_loader, net.neural_net,save=False)
-        [val_ious,val_grid] = evaluate_iou(val_loader, net.neural_net,save=False)
+        [train_ious, train_grid] = evaluate_iou(train_loader, net.neural_net, save=False)
+        [val_ious, val_grid] = evaluate_iou(val_loader, net.neural_net, save=False)
         writer.add_scalar('data/train_f_dice', train_ious[1], iteration)
         writer.add_scalar('data/val_f_dice', val_ious[1], iteration)
 
@@ -104,11 +129,12 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
             if not os.path.exists(os.path.join('results', filename)):
                 os.mkdir(os.path.join('results', filename))
 
-            pd.DataFrame(ious_tables).to_csv(os.path.join('results', filename, '%s_dataaug_%s.csv' %(variable_str,data_aug)), header=None)
+            pd.DataFrame(ious_tables).to_csv(
+                os.path.join('results', filename, '%s_dataaug_%s.csv' % (variable_str, data_aug)), header=None)
         except Exception as e:
             print(e)
 
-        if iteration%20 ==0:
+        if iteration % 20 == 0:
             net.learning_rate_decay(0.95)
 
         for j, (img, full_mask, weak_mask, _) in tqdm(enumerate(train_loader)):
@@ -120,13 +146,13 @@ def main(baseline, inneriter, lamda, sigma, kernelsize, dilation_level, lowbound
                 net.update_1((img, weak_mask), full_mask)
                 # net.show_gamma()
                 # net.show_heatmap()
-                # print(net.upbound,net.lowbound)
+                # print(net.upbound, net.lowbound)
                 net.update_2()
             net.reset()
-
 
 
 if __name__ == "__main__":
     np.random.seed(1)
     torch.random.manual_seed(1)
-    main()
+    args = build_parser()
+    main(args)

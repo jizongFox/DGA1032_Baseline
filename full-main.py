@@ -69,7 +69,6 @@ def val(val_dataloader, network, save=False):
 
     dice_meter_b.reset()
     dice_meter_f.reset()
-
     images = []
     with torch.no_grad():
         for i, (image, mask, _, _) in enumerate(val_dataloader):
